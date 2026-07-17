@@ -14,7 +14,7 @@ Changelog, and releases follow Semantic Versioning.
 - Size and SHA-256 verification before permission policy and final rename.
 - Recursive transfer with default symlink and special-file rejection.
 - Windows drive, UNC, MINGW, Cygwin, POSIX, space, and Unicode path handling.
-- `private`, `shared`, `media-readonly`, `public-readonly`, and `preserve`
+- `private`, `shared`, `service-readonly`, `public-readonly`, and `preserve`
   permission policies with validated overrides and optional group application.
 - Read-only service-account traversal and target-read diagnostics.
 - Optional rsync adapter with executable dialect classification and argument-only
