@@ -1,6 +1,8 @@
 # Build and coverage output
 /bin/
 /dist/
+/build/
+/vericopy-desktop
 /coverage/
 *.coverprofile
 *.test
@@ -19,4 +21,3 @@
 Thumbs.db
 *.swp
 *~
-

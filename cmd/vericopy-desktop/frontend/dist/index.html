@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="color-scheme" content="light" />
+    <title>Vericopy</title>
+    <link rel="stylesheet" href="./style.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <header class="masthead" data-wails-drag>
+        <a class="wordmark" href="#overview" aria-label="Vericopy home">Vericopy<span>.</span></a>
+        <p class="eyebrow">Verified local transfer workspace</p>
+        <div class="masthead-status"><span class="status-dot"></span><span>Local only</span></div>
+      </header>
+
+      <div class="workspace">
+        <aside class="sidebar" aria-label="Workspace navigation">
+          <nav class="nav-list">
+            <button class="nav-link is-active" type="button" data-view="overview">Overview</button>
+            <button class="nav-link" type="button" data-view="transfer">New transfer</button>
+          </nav>
+          <div class="sidebar-note">
+            <span class="section-number">01</span>
+            <p>Host identity, transfer integrity, and access are reviewed as one operation.</p>
+          </div>
+          <p class="build-note" id="build-note">Loading build identity…</p>
+        </aside>
+
+        <main class="content">
+          <section id="overview" class="view is-visible" data-view-panel="overview" aria-labelledby="overview-title">
+            <div class="hero">
+              <p class="section-number">Overview</p>
+              <h1 id="overview-title">Move files with evidence, not guesswork.</h1>
+              <p class="lede">Vericopy keeps transfer execution on this computer, verifies the SSH host, and reads the destination back before calling a transfer complete.</p>
+              <button class="button button-primary" type="button" data-open-transfer>Start a reviewed transfer</button>
+            </div>
+
+            <div class="readiness-grid" aria-live="polite">
+              <article class="readiness-card">
+                <p class="card-label">Host identity</p>
+                <strong id="known-hosts-state">Checking…</strong>
+                <p id="known-hosts-detail">Strict known_hosts validation is required.</p>
+              </article>
+              <article class="readiness-card">
+                <p class="card-label">Authentication</p>
+                <strong id="agent-state">Checking…</strong>
+                <p>SSH agent is preferred; an explicit key path remains available.</p>
+              </article>
+              <article class="readiness-card">
+                <p class="card-label">Transfer engine</p>
+                <strong>Native SFTP</strong>
+                <p>Resume compatibility, SHA-256 readback, and destination policy are enforced by Go.</p>
+              </article>
+            </div>
+
+            <div class="principles">
+              <div><span class="section-number">A</span><h2>Review first</h2><p>See source, destination, port, and policy before a network connection starts.</p></div>
+              <div><span class="section-number">B</span><h2>Verify last</h2><p>Finalization waits for matching size and SHA-256 bytes from the remote file.</p></div>
+              <div><span class="section-number">C</span><h2>Keep control</h2><p>No password field, cloud relay, automatic host trust, or hidden remote shell.</p></div>
+            </div>
+          </section>
+
+          <section id="transfer" class="view" data-view-panel="transfer" aria-labelledby="transfer-title">
+            <div class="page-heading">
+              <p class="section-number">New transfer</p>
+              <h1 id="transfer-title">Build a transfer you can inspect.</h1>
+              <p class="lede">The app requires an explicit SSH user and validates every local choice before connecting.</p>
+            </div>
+
+            <form id="transfer-form" novalidate>
+              <div class="form-layout">
+                <div class="form-main">
+                  <fieldset>
+                    <legend>Local source</legend>
+                    <p class="field-help">Choose one regular file or a folder. Folders require recursive transfer.</p>
+                    <label for="source">Path</label>
+                    <div class="input-with-actions">
+                      <input id="source" name="source" type="text" placeholder="C:\Users\me\Documents\annual-report.pdf" autocomplete="off" required />
+                      <button class="button button-secondary" type="button" id="choose-file">Choose file</button>
+                      <button class="button button-secondary" type="button" id="choose-folder">Choose folder</button>
+                    </div>
+                    <label class="checkbox-row"><input id="recursive" name="recursive" type="checkbox" /> <span>Copy folder contents recursively</span></label>
+                  </fieldset>
+
+                  <fieldset>
+                    <legend>Remote destination</legend>
+                    <p class="field-help">Use an explicit account and an absolute remote path.</p>
+                    <label for="destination">Destination</label>
+                    <input id="destination" name="destination" type="text" placeholder="transfer@files.example:/srv/shared/annual-report.pdf" autocomplete="off" required />
+                    <div class="field-grid">
+                      <div><label for="port">SSH port</label><input id="port" name="port" type="number" min="1" max="65535" value="22" /></div>
+                      <div><label for="permissions">Destination policy</label><select id="permissions" name="permissions"><option value="private">Private — SSH account only</option><option value="shared">Shared — read/write group</option><option value="service-readonly">Service readonly — owner writes, group reads</option><option value="public-readonly">Public readonly — published files</option><option value="preserve">Preserve POSIX mode</option></select></div>
+                    </div>
+                  </fieldset>
+
+                  <fieldset>
+                    <legend>Security and options</legend>
+                    <div class="field-grid">
+                      <div><label for="identity">Private key path <span class="optional">optional</span></label><div class="input-with-actions"><input id="identity" name="identity" type="text" placeholder="Use SSH agent when possible" autocomplete="off" /><button class="button button-secondary" type="button" id="choose-identity">Choose key</button></div></div>
+                      <div><label for="known-hosts">known_hosts path <span class="optional">optional</span></label><input id="known-hosts" name="known-hosts" type="text" placeholder="Default local known_hosts" autocomplete="off" /></div>
+                    </div>
+                    <div class="field-grid">
+                      <div><label for="group">Remote group <span class="optional">optional</span></label><input id="group" name="group" type="text" placeholder="readers" autocomplete="off" /></div>
+                      <div><label for="readable-by">Check readable by <span class="optional">optional</span></label><input id="readable-by" name="readable-by" type="text" placeholder="document-indexer" autocomplete="off" /></div>
+                    </div>
+                    <div class="checkboxes"><label class="checkbox-row"><input id="resume" name="resume" type="checkbox" checked /> <span>Resume compatible partial transfer</span></label><label class="checkbox-row"><input id="overwrite" name="overwrite" type="checkbox" /> <span>Allow replacement of an existing destination</span></label><label class="checkbox-row"><input id="preserve-time" name="preserve-time" type="checkbox" /> <span>Preserve source modification time</span></label></div>
+                  </fieldset>
+                </div>
+
+                <aside class="review-pane" aria-live="polite">
+                  <p class="card-label">Transfer review</p>
+                  <div id="review-empty"><h2>Nothing reviewed yet</h2><p>Validate the local request before any SSH connection starts.</p></div>
+                  <div id="review-result" hidden>
+                    <h2 id="review-title">Ready to transfer</h2>
+                    <dl class="review-list" id="review-list"></dl>
+                    <p class="review-security">Strict known_hosts verification remains mandatory when the transfer starts.</p>
+                  </div>
+                  <div class="review-actions"><button class="button button-secondary" type="submit" id="review-button">Review transfer</button><button class="button button-primary" type="button" id="start-transfer" disabled>Confirm &amp; transfer</button><button class="button button-quiet" type="button" id="cancel-transfer" hidden>Cancel transfer</button></div>
+                  <div class="notice" id="notice" hidden role="status"></div>
+                </aside>
+              </div>
+            </form>
+          </section>
+        </main>
+      </div>
+    </div>
+    <script type="module" src="./app.js"></script>
+  </body>
+</html>

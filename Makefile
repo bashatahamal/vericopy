@@ -7,13 +7,17 @@ LDFLAGS := -s -w \
 	-X github.com/bashatahamal/vericopy/internal/version.Commit=$(COMMIT) \
 	-X github.com/bashatahamal/vericopy/internal/version.BuildDate=$(BUILD_DATE)
 
-.PHONY: all build test race race-container vet staticcheck vulncheck check integration cross-build clean
+.PHONY: all build desktop-build test race race-container vet staticcheck vulncheck check integration cross-build clean
 
 all: check build
 
 build:
 	mkdir -p bin
 	$(GO) build -trimpath -buildvcs=false -ldflags '$(LDFLAGS)' -o bin/vericopy ./cmd/vericopy
+
+desktop-build:
+	mkdir -p bin
+	$(GO) build -tags desktop -trimpath -buildvcs=false -ldflags '$(LDFLAGS)' -o bin/vericopy-desktop ./cmd/vericopy-desktop
 
 test:
 	$(GO) test -count=1 ./...

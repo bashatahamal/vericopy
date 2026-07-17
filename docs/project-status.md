@@ -12,14 +12,16 @@ host identity, resume safety, byte-for-byte verification, path dialects, and
 destination access as one transfer problem rather than a collection of shell
 incantations.
 
-The product is a native CLI. Its interface is terminal output, stable JSON,
-diagnostic codes, documentation, and release artifacts. A browser application
-is not part of the initial product.
+The product is desktop-first: a native application makes verified transfers
+operable without command-line expertise. The CLI remains a first-class interface
+for automation, diagnostics, and expert workflows. The desktop application is
+local, not a hosted browser service, and calls the same Go transfer engine as
+the CLI.
 
 ## Current release
 
 - Version: `0.1.0-dev`
-- Stability: active development, interfaces may change before `1.0.0`
+- Stability: active development; desktop and CLI interfaces may change before `1.0.0`
 - Source of truth: `VERSION`
 - Release history: `CHANGELOG.md`
 - Build identity: version, commit, and build date reported by `vericopy version`
@@ -35,6 +37,7 @@ is not part of the initial product.
 | M3: directory and permission policies | Complete | Unit and isolated OpenSSH evidence pass |
 | M4: optional rsync adapter | Complete | Binary dialect detection and safe argument-only execution |
 | M5: release candidate | Complete | Unit, race, integration, static, vulnerability, and release checks pass |
+| M6: desktop foundation | In progress | Branded native shell validates and executes a transfer through the shared engine |
 
 Status values are `Planned`, `In progress`, `Blocked`, and `Complete`. A
 milestone becomes complete only when its acceptance signal is verified.
@@ -51,18 +54,25 @@ milestone becomes complete only when its acceptance signal is verified.
 - [x] Cross-compiled the six supported platform and architecture combinations.
 - [x] Run the isolated OpenSSH suite through a compatible local container runtime.
 - [x] Run race detection in a disposable Go container with a C compiler.
-- [ ] Create the reviewed local commit history and first release tag.
+- [x] Create the reviewed local commit history and publish the public repository.
+- [x] Add a branded Wails desktop shell backed by the shared Go transfer engine.
+- [x] Add desktop request review, native source/key selection, confirmation,
+  cancellation, and verified SFTP execution boundaries.
+- [ ] Create and verify the first release tag.
+- [ ] Complete desktop workflow acceptance on Windows, macOS, and Linux.
 
 ## Now
 
-1. Complete the initial local commit series after configuring the Git author.
-2. Run `./integration/run.sh` in CI and on a Docker-enabled workstation.
-3. Run `./scripts/race-container.sh` when a host compiler is unavailable.
+1. Restore the three failing GitHub Actions checks and confirm the first runs.
+2. Exercise a disposable Linux host from the desktop app, Windows PowerShell,
+   and Git Bash.
+3. Validate the desktop app in native Windows, macOS, and Linux sessions.
 
 ## Next
 
-1. Exercise a disposable Linux host from Windows PowerShell and Git Bash.
-2. Close any defects found by the real OpenSSH and Windows acceptance runs.
+1. Add saved non-secret connection profiles, progress reporting, and transfer
+   history to the desktop experience.
+2. Close any defects found by desktop and Windows acceptance runs.
 3. Prepare `0.1.0` release artifacts and a signed version tag.
 4. Enable required GitHub checks, private security reporting, tag protection,
    and artifact attestations before publishing the first release.

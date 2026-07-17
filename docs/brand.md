@@ -45,6 +45,19 @@ site and must be retested in the exact surface.
 The repository banner uses fallbacks only and embeds no font file. This keeps the
 asset portable and avoids transferring reference assets unnecessarily.
 
+## Desktop application
+
+The desktop app uses the same editorial hierarchy as the repository assets: a
+warm ground, one restrained green action, a gold hairline, serif product name,
+and monospace technical facts. A transfer is presented as a reviewable sequence,
+not an opaque progress gadget. Host identity, source and destination paths,
+policy, byte count, checksum, and next action stay legible at every state.
+
+The primary action remains green only when the request is locally valid. Red or
+gold status always has accompanying plain-language text. The initial UI avoids
+decorative gradients, excessive motion, and password fields; it relies on the
+SSH agent or an explicitly selected key path.
+
 ## CLI behavior
 
 The CLI is fully usable without color. The current release emits no ANSI color,
@@ -81,4 +94,3 @@ use near-zero motion, short hover transitions, and a full
 
 No reference photo, favicon, portfolio thumbnail, or personal wordmark is
 included in this repository.
-
