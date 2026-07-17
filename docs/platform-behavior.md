@@ -8,13 +8,13 @@ to a server.
 
 | Form | Example | Classification |
 | --- | --- | --- |
-| Native Windows drive | `C:\Users\me\Film.mkv` | `windows-drive` |
-| Windows drive with slashes | `C:/Users/me/Film.mkv` | `windows-drive` |
-| UNC | `\\server\share\Film.mkv` | `windows-unc` |
-| Git Bash or MINGW | `/c/Users/me/Film.mkv` | `mingw` |
-| Cygwin | `/cygdrive/c/Users/me/Film.mkv` | `cygwin` |
-| POSIX absolute | `/home/me/Film.mkv` | `posix` |
-| Relative | `media/Film.mkv` | `relative` |
+| Native Windows drive | `C:\Users\me\Documents\annual-report.pdf` | `windows-drive` |
+| Windows drive with slashes | `C:/Users/me/Documents/annual-report.pdf` | `windows-drive` |
+| UNC | `\\server\shared\annual-report.pdf` | `windows-unc` |
+| Git Bash or MINGW | `/c/Users/me/Documents/annual-report.pdf` | `mingw` |
+| Cygwin | `/cygdrive/c/Users/me/Documents/annual-report.pdf` | `cygwin` |
+| POSIX absolute | `/home/me/Documents/annual-report.pdf` | `posix` |
+| Relative | `reports/annual-report.pdf` | `relative` |
 
 Spaces and Unicode remain data within one process argument. Quote paths for the
 launching shell, then Vericopy preserves the resulting argument.
@@ -35,7 +35,7 @@ binary, or run the Windows binary with a Windows form.
 Remote destinations use `[user@]host:path`. Bracketed IPv6 is supported:
 
 ```text
-user@[2001:db8::20]:/srv/media/Film.mkv
+user@[2001:db8::20]:/srv/shared/annual-report.pdf
 ```
 
 A colon after a Windows drive letter is never treated as the remote separator.
@@ -65,4 +65,3 @@ to the binary. A Cygwin rsync launched from Git Bash still expects Cygwin paths.
 Vericopy rejects known mismatches with `SOURCE_PATH_DIALECT_MISMATCH`. Cygwin
 conversion should use the matching installation's `cygpath`, because the drive
 prefix can be customized. See the [debugging guide](debugging/windows-cygwin-rsync-paths.md).
-

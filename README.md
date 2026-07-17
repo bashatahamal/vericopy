@@ -2,18 +2,33 @@
 
 # Vericopy
 
-Cross-platform, resumable file transfer over SSH with strict host verification,
-SHA-256 validation, Windows path normalization, and documented destination
-permissions.
+Desktop-first, cross-platform file transfer over SSH with strict host
+verification, SHA-256 validation, Windows path normalization, and documented
+destination permissions.
 
-> Project status: `0.1.0-dev`. The native transfer path is implemented and the
-> unit suite passes. Container integration infrastructure is present, but has
-> not yet been run in the current environment. See the
+> Project status: `0.1.0-dev`. The verified transfer engine is implemented and
+> the desktop application is now the primary product surface. See the
 > [living project tracker](docs/project-status.md) for exact status and next work.
 
-Vericopy is a native command-line application. There is no web application to
-configure or trust. Human output is concise, JSON is stable for automation, and
-every failure carries a machine-readable diagnostic code.
+Vericopy is a native desktop application backed by a Go transfer engine. Its
+CLI remains available for automation and expert workflows. The desktop app does
+not require a hosted service: transfers run from the user's machine, use the
+local SSH agent or explicitly selected key, and retain strict `known_hosts`
+verification.
+
+## Desktop application
+
+The in-progress desktop surface is a focused transfer workspace: choose a local
+file or folder, review a remote destination and security policy, then transfer
+and verify without composing an SSH command by hand. It is built with Wails and
+shares the exact same Go transfer engine as the CLI; it is not a separate or
+less-secure implementation.
+
+The initial desktop workflow includes source inspection, destination validation,
+strict host-key prerequisites, transfer review, verified SFTP execution, and a
+clear result state. Saved connection profiles, detailed byte progress, and
+transfer history are tracked as follow-up UI milestones. See the
+[desktop UI plan](docs/desktop-ui.md).
 
 ## Why Vericopy
 
@@ -31,19 +46,19 @@ every failure carries a machine-readable diagnostic code.
 ## Short demonstration
 
 ```console
-$ vericopy inspect-path 'C:\Users\me\Downloads\My Film.mkv' --target-os windows
+$ vericopy inspect-path 'C:\Users\me\Documents\quarterly-report.zip' --target-os windows
 kind: windows-drive
-normalized: C:\Users\me\Downloads\My Film.mkv
+normalized: C:\Users\me\Documents\quarterly-report.zip
 target OS: windows
 
-$ vericopy copy 'C:\Users\me\Downloads\My Film.mkv' \
-    transfer@media.example:/srv/media/My\ Film.mkv \
-    --resume --permissions media-readonly --readable-by jellyfin
-Transferred 1 file(s), 9019431321 bytes to /srv/media/My Film.mkv
+$ vericopy copy 'C:\Users\me\Documents\quarterly-report.zip' \
+    transfer@files.example:/srv/shared/quarterly-report.zip \
+    --resume --permissions shared --readable-by document-indexer
+Transferred 1 file(s), 42890211 bytes to /srv/shared/quarterly-report.zip
 SHA-256: 4b7c...9a20
 ```
 
-## Install from source
+## Install the CLI from source
 
 Requirements: Go 1.25 or later. The project is developed against the current
 stable Go toolchain.
@@ -54,11 +69,25 @@ cd vericopy
 go build -trimpath -o ./bin/vericopy ./cmd/vericopy
 ```
 
-Release archives will be available for Windows, macOS, and Linux on amd64 and
-arm64 after the first tagged release. Verify downloads before installing them;
-see [release verification](docs/release-verification.md).
+Release archives for both the desktop app and CLI will be available for Windows,
+macOS, and Linux on amd64 and arm64 after the first tagged release. Verify
+downloads before installing them; see
+[release verification](docs/release-verification.md).
 
-## Quick start
+### Build the desktop development binary
+
+The desktop shell uses checked-in, embedded frontend assets. On a supported
+desktop platform, build it with:
+
+```sh
+make desktop-build
+./bin/vericopy-desktop
+```
+
+The UI requires a native desktop session. It does not start a web server or
+send files through a hosted intermediary.
+
+## CLI quick start
 
 1. Load a private key into your SSH agent.
 2. Add the server host key to `~/.ssh/known_hosts` only after verifying its
@@ -69,13 +98,13 @@ see [release verification](docs/release-verification.md).
 ```sh
 ssh-add ~/.ssh/id_ed25519
 vericopy doctor
-vericopy inspect-path '/home/me/large-file.mkv'
-vericopy copy '/home/me/large-file.mkv' \
-  'transfer@server.example:/srv/media/large-file.mkv' \
+vericopy inspect-path '/home/me/Documents/annual-report.pdf'
+vericopy copy '/home/me/Documents/annual-report.pdf' \
+  'transfer@server.example:/srv/shared/annual-report.pdf' \
   --resume --dry-run
-vericopy copy '/home/me/large-file.mkv' \
-  'transfer@server.example:/srv/media/large-file.mkv' \
-  --resume --permissions media-readonly
+vericopy copy '/home/me/Documents/annual-report.pdf' \
+  'transfer@server.example:/srv/shared/annual-report.pdf' \
+  --resume --permissions shared
 ```
 
 Vericopy never trusts a host automatically. `ssh-keyscan` retrieves a key but
@@ -129,7 +158,7 @@ vericopy verify ./archive.tar.zst user@host:/srv/archive.tar.zst
 ### Check service-account access
 
 ```sh
-vericopy check-access user@host:/srv/media/Film.mkv --as-user jellyfin
+vericopy check-access user@host:/srv/shared/annual-report.pdf --as-user document-indexer
 ```
 
 The check reads numeric user/group information and SFTP metadata. It does not
@@ -141,18 +170,18 @@ PowerShell:
 
 ```powershell
 vericopy.exe copy `
-  'C:\Users\me\Downloads\My Film.mkv' `
-  'transfer@server:/srv/media/My Film.mkv' `
-  --resume --permissions media-readonly
+  'C:\Users\me\Documents\quarterly-report.zip' `
+  'transfer@server:/srv/shared/quarterly-report.zip' `
+  --resume --permissions shared
 ```
 
 Git Bash:
 
 ```sh
 vericopy.exe copy \
-  '/c/Users/me/Downloads/My Film.mkv' \
-  'transfer@server:/srv/media/My Film.mkv' \
-  --resume --permissions media-readonly
+  '/c/Users/me/Documents/quarterly-report.zip' \
+  'transfer@server:/srv/shared/quarterly-report.zip' \
+  --resume --permissions shared
 ```
 
 The native SFTP backend normalizes the local path internally. The optional
@@ -166,7 +195,7 @@ not the launching shell. See the
 | --- | ---: | ---: | --- |
 | `private` | `0700` | `0600` | SSH account only |
 | `shared` | `2770` | `0660` | Read/write group collaboration |
-| `media-readonly` | `2750` | `0640` | Owner writes, media group reads |
+| `service-readonly` | `2750` | `0640` | Owner writes, a designated read-only group reads |
 | `public-readonly` | `0755` | `0644` | World-readable published content |
 | `preserve` | source mode | source mode | Explicit POSIX-to-POSIX preservation |
 
@@ -177,13 +206,13 @@ escalation. Windows ACL replication is outside the initial scope.
 ## JSON and exit codes
 
 ```sh
-vericopy inspect-path '/cygdrive/c/Media/Film.mkv' --target-os windows --json
+vericopy inspect-path '/cygdrive/c/Users/me/Documents/annual-report.pdf' --target-os windows --json
 ```
 
 Success:
 
 ```json
-{"ok":true,"result":{"original":"/cygdrive/c/Media/Film.mkv","kind":"cygwin","normalized":"C:\\Media\\Film.mkv","target_os":"windows","absolute":true}}
+{"ok":true,"result":{"original":"/cygdrive/c/Users/me/Documents/annual-report.pdf","kind":"cygwin","normalized":"C:\\Users\\me\\Documents\\annual-report.pdf","target_os":"windows","absolute":true}}
 ```
 
 Failure:
@@ -218,7 +247,7 @@ Read the full [platform compatibility contract](docs/platform-behavior.md).
 
 - [Security model](docs/security-model.md)
 - [Architecture and transfer sequence](docs/architecture.md)
-- [Linux media permission guide](docs/guides/linux-media-permissions.md)
+- [Linux service permission guide](docs/guides/linux-service-permissions.md)
 - [Brand and accessibility decisions](docs/brand.md)
 
 SHA-256 proves that the destination bytes match the source bytes Vericopy

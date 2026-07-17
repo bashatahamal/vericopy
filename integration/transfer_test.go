@@ -63,13 +63,13 @@ func TestUploadRecursivePermissionsAndExistingProtection(t *testing.T) {
 	if err := os.Mkdir(filepath.Join(localRoot, "sub"), 0o700); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(localRoot, "My Film.mkv"), []byte(strings.Repeat("media", 4096)), 0o600); err != nil {
+	if err := os.WriteFile(filepath.Join(localRoot, "quarterly-report.zip"), []byte(strings.Repeat("report-data", 4096)), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	if err := os.WriteFile(filepath.Join(localRoot, "sub", "動画.txt"), []byte("unicode"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	policy, _ := permissions.Resolve("media-readonly", "", "")
+	policy, _ := permissions.Resolve("shared", "", "")
 	destination := "/data/tree-" + strconv.Itoa(os.Getpid())
 	result, err := (transfer.Engine{Remote: remoteFS}).Copy(context.Background(), localRoot, destination, transfer.Options{Recursive: true, Resume: true, Policy: policy})
 	if err != nil {
@@ -78,12 +78,12 @@ func TestUploadRecursivePermissionsAndExistingProtection(t *testing.T) {
 	if result.Files != 2 || !result.Verified {
 		t.Fatalf("unexpected result: %#v", result)
 	}
-	info, err := remoteFS.Stat(destination + "/My Film.mkv")
+	info, err := remoteFS.Stat(destination + "/quarterly-report.zip")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if info.Mode().Perm() != 0o640 {
-		t.Fatalf("mode=%04o want 0640", info.Mode().Perm())
+	if info.Mode().Perm() != 0o660 {
+		t.Fatalf("mode=%04o want 0660", info.Mode().Perm())
 	}
 	_, err = (transfer.Engine{Remote: remoteFS}).Copy(context.Background(), localRoot, destination, transfer.Options{Recursive: true, Policy: policy})
 	if err == nil || verrors.As(err).Code != verrors.CodeDestinationExists {

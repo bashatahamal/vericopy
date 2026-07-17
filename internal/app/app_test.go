@@ -28,7 +28,7 @@ func TestVersionJSON(t *testing.T) {
 func TestInspectWindowsPath(t *testing.T) {
 	var stdout, stderr bytes.Buffer
 	root, _ := app.NewRoot(&stdout, &stderr)
-	root.SetArgs([]string{"inspect-path", `C:\\Users\\Person\\My Film.mkv`, "--target-os", "windows"})
+	root.SetArgs([]string{"inspect-path", `C:\\Users\\Person\\Documents\\annual-report.pdf`, "--target-os", "windows"})
 	if err := root.Execute(); err != nil {
 		t.Fatal(err)
 	}

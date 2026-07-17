@@ -44,21 +44,21 @@ func (r localRemote) Rename(oldName, newName string) error {
 func (r localRemote) Remove(name string) error { return os.Remove(r.local(name)) }
 
 func TestCopyAndVerify(t *testing.T) {
-	source := filepath.Join(t.TempDir(), "My Film.mkv")
+	source := filepath.Join(t.TempDir(), "quarterly-report.zip")
 	content := strings.Repeat("verified-content", 1024)
 	if err := os.WriteFile(source, []byte(content), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	remoteFS := localRemote{root: t.TempDir()}
-	policy, _ := permissions.Resolve("media-readonly", "", "")
-	result, err := (transfer.Engine{Remote: remoteFS}).Copy(context.Background(), source, "/media/My Film.mkv", transfer.Options{Resume: true, Policy: policy})
+	policy, _ := permissions.Resolve("shared", "", "")
+	result, err := (transfer.Engine{Remote: remoteFS}).Copy(context.Background(), source, "/shared/quarterly-report.zip", transfer.Options{Resume: true, Policy: policy})
 	if err != nil {
 		t.Fatal(err)
 	}
 	if !result.Verified || result.Bytes != int64(len(content)) || result.SHA256 == "" {
 		t.Fatalf("unexpected result: %#v", result)
 	}
-	got, err := os.ReadFile(remoteFS.local("/media/My Film.mkv"))
+	got, err := os.ReadFile(remoteFS.local("/shared/quarterly-report.zip"))
 	if err != nil || string(got) != content {
 		t.Fatalf("remote content mismatch: %v", err)
 	}

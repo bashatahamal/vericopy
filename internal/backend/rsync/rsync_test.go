@@ -25,15 +25,15 @@ func TestClassify(t *testing.T) {
 }
 
 func TestBuildArgsRemainSeparate(t *testing.T) {
-	args, err := rsync.BuildArgs(`C:\Media\My Film.mkv`, `user@host:/srv/My Film.mkv`, rsync.DialectWindows, rsync.Options{Port: 2222, Identity: `C:\Keys\Person's Key`})
+	args, err := rsync.BuildArgs(`C:\Documents\quarterly-report.zip`, `user@host:/srv/shared/quarterly-report.zip`, rsync.DialectWindows, rsync.Options{Port: 2222, Identity: `C:\Keys\Person's Key`})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if args[len(args)-2] != `C:\Media\My Film.mkv` || args[len(args)-1] != `user@host:/srv/My Film.mkv` {
+	if args[len(args)-2] != `C:\Documents\quarterly-report.zip` || args[len(args)-1] != `user@host:/srv/shared/quarterly-report.zip` {
 		t.Fatalf("paths were not preserved as arguments: %#v", args)
 	}
 	for _, arg := range args {
-		if strings.Contains(arg, `"C:\Media`) {
+		if strings.Contains(arg, `"C:\Documents`) {
 			t.Fatalf("source was shell-quoted: %q", arg)
 		}
 	}
@@ -44,7 +44,7 @@ func TestBuildArgsRemainSeparate(t *testing.T) {
 }
 
 func TestDialectMismatch(t *testing.T) {
-	_, err := rsync.BuildArgs(`/c/Users/person/file.mkv`, `host:/srv/file.mkv`, rsync.DialectCygwin, rsync.Options{})
+	_, err := rsync.BuildArgs(`/c/Users/person/Documents/annual-report.pdf`, `host:/srv/shared/annual-report.pdf`, rsync.DialectCygwin, rsync.Options{})
 	if err == nil {
 		t.Fatal("expected mismatch")
 	}
