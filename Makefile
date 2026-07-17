@@ -40,7 +40,7 @@ vulncheck:
 check: test vet staticcheck vulncheck
 
 integration:
-	./integration/run.sh
+	sh ./integration/run.sh
 
 cross-build:
 	mkdir -p bin
