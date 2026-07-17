@@ -1,0 +1,10 @@
+.git
+.github
+bin
+dist
+coverage
+integration/.state
+integration/testdata/generated
+*.md
+!README.md
+

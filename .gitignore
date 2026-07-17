@@ -1,0 +1,22 @@
+# Build and coverage output
+/bin/
+/dist/
+/coverage/
+*.coverprofile
+*.test
+
+# Integration-test state and credentials
+/integration/.state/
+/integration/testdata/generated/
+
+# Local environment files
+.env
+.env.*
+!.env.example
+
+# Platform and editor noise
+.DS_Store
+Thumbs.db
+*.swp
+*~
+
