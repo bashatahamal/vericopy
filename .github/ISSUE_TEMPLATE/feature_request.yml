@@ -1,0 +1,28 @@
+name: Feature request
+description: Propose a focused transfer, security, or platform improvement
+title: "feat: "
+labels:
+  - enhancement
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: Describe the concrete workflow that is currently difficult or unsafe.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed behavior
+      description: Include defaults, failure behavior, and command examples.
+    validations:
+      required: true
+  - type: textarea
+    id: security
+    attributes:
+      label: Security and platform considerations
+      description: Explain host, path, credential, overwrite, permission, and compatibility effects.
+    validations:
+      required: true
+
