@@ -41,6 +41,19 @@ func TestReviewTransferRequiresExplicitRemoteUser(t *testing.T) {
 	}
 }
 
+func TestReviewTransferRequiresAbsoluteRemotePath(t *testing.T) {
+	source := filepath.Join(t.TempDir(), "annual-report.pdf")
+	if err := os.WriteFile(source, []byte("report"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	_, err := desktop.NewService().ReviewTransfer(desktop.TransferRequest{
+		Source: source, Destination: "transfer@example.com:relative-report.pdf",
+	})
+	if err == nil || verrors.As(err).Code != verrors.CodeInvalidArguments {
+		t.Fatalf("relative remote path was accepted: %v", err)
+	}
+}
+
 func TestReviewTransferRequiresRecursiveForDirectory(t *testing.T) {
 	source := t.TempDir()
 	_, err := desktop.NewService().ReviewTransfer(desktop.TransferRequest{

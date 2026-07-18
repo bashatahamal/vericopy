@@ -26,9 +26,10 @@ less-secure implementation.
 
 The initial desktop workflow includes source inspection, destination validation,
 strict host-key prerequisites, transfer review, verified SFTP execution, and a
-clear result state. Saved connection profiles, detailed byte progress, and
-transfer history are tracked as follow-up UI milestones. See the
-[desktop UI plan](docs/desktop-ui.md).
+clear result state. It also has non-secret saved connections, truthful
+per-file byte progress, and redacted local transfer history. Native acceptance
+and signed packaging remain release gates; see the [desktop UI plan](docs/desktop-ui.md)
+and [desktop acceptance checklist](docs/desktop-acceptance.md).
 
 ## Why Vericopy
 
@@ -69,9 +70,9 @@ cd vericopy
 go build -trimpath -o ./bin/vericopy ./cmd/vericopy
 ```
 
-Release archives for both the desktop app and CLI will be available for Windows,
-macOS, and Linux on amd64 and arm64 after the first tagged release. Verify
-downloads before installing them; see
+CLI archives will be available for Windows, macOS, and Linux on amd64 and arm64
+after the first tagged release. Native desktop packages require separate
+per-platform acceptance and signing before publication; see
 [release verification](docs/release-verification.md).
 
 ### Build the desktop development binary
@@ -86,6 +87,17 @@ make desktop-build
 
 The UI requires a native desktop session. It does not start a web server or
 send files through a hosted intermediary.
+
+To produce a native Wails package on its target operating system, install the
+matching Wails CLI and run `make desktop-package`:
+
+```sh
+go install github.com/wailsapp/wails/v2/cmd/wails@v2.13.0
+make desktop-package
+```
+
+This is intentionally not treated as a cross-build: package, signing, and
+acceptance evidence must be produced on the platform that will run the app.
 
 ## CLI quick start
 
@@ -249,6 +261,7 @@ Read the full [platform compatibility contract](docs/platform-behavior.md).
 - [Architecture and transfer sequence](docs/architecture.md)
 - [Linux service permission guide](docs/guides/linux-service-permissions.md)
 - [Brand and accessibility decisions](docs/brand.md)
+- [Desktop acceptance checklist](docs/desktop-acceptance.md)
 
 SHA-256 proves that the destination bytes match the source bytes Vericopy
 observed. It does not prove that the source is trustworthy, safe, or malware-free.
@@ -262,7 +275,7 @@ go vet ./...
 go run honnef.co/go/tools/cmd/staticcheck@v0.7.0 ./...
 go run golang.org/x/vuln/cmd/govulncheck@v1.6.0 ./...
 make cross-build
-./integration/run.sh   # requires Docker and OpenSSH client tools
+sh ./integration/run.sh   # requires Docker and OpenSSH client tools
 CONTAINER_RUNTIME=podman VERICOPY_GO_BIN=/path/to/go ./integration/run.sh
 CONTAINER_RUNTIME=podman ./scripts/race-container.sh
 ```

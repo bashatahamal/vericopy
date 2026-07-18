@@ -46,6 +46,18 @@ type Options struct {
 	DryRun       bool
 	Policy       permissions.Policy
 	GID          *int
+	Progress     func(Progress)
+}
+
+// Progress is an honest per-file transfer update. Directory transfers emit an
+// update for the current file instead of inventing an aggregate percentage.
+type Progress struct {
+	Phase            string
+	Source           string
+	Destination      string
+	TransferredBytes int64
+	TotalBytes       int64
+	ResumedBytes     int64
 }
 
 // Result summarizes verified transfer work.
@@ -63,6 +75,12 @@ type Result struct {
 // Engine performs transfers without invoking a remote shell.
 type Engine struct {
 	Remote RemoteFS
+}
+
+func (e Engine) report(options Options, progress Progress) {
+	if options.Progress != nil {
+		options.Progress(progress)
+	}
 }
 
 // Copy transfers a regular file or a directory tree.
@@ -191,6 +209,7 @@ func (e Engine) copyFile(ctx context.Context, source, destination string, option
 	if err != nil {
 		return Result{}, verrors.Wrap(verrors.CodeInvalidLocalPath, "the source cannot be read", err)
 	}
+	e.report(options, Progress{Phase: "preparing", Source: source, Destination: destination, TotalBytes: initial.Size()})
 	if err := e.validateRemoteParents(destination); err != nil {
 		return Result{}, err
 	}
@@ -247,7 +266,16 @@ func (e Engine) copyFile(ctx context.Context, source, destination string, option
 		return Result{}, err
 	}
 	result.ResumedBytes = offset
-	localDigest, localBytes, err := e.upload(ctx, source, partialPath, offset)
+	e.report(options, Progress{
+		Phase: "uploading", Source: source, Destination: destination,
+		TransferredBytes: offset, TotalBytes: initial.Size(), ResumedBytes: offset,
+	})
+	localDigest, localBytes, err := e.upload(ctx, source, partialPath, offset, func(transferred int64) {
+		e.report(options, Progress{
+			Phase: "uploading", Source: source, Destination: destination,
+			TransferredBytes: transferred, TotalBytes: initial.Size(), ResumedBytes: offset,
+		})
+	})
 	if err != nil {
 		return Result{}, err
 	}
@@ -257,6 +285,10 @@ func (e Engine) copyFile(ctx context.Context, source, destination string, option
 		return Result{}, verrors.New(verrors.CodeSourceChanged, "the source changed while it was being transferred").
 			WithHint("Retry after the source is no longer being modified.")
 	}
+	e.report(options, Progress{
+		Phase: "verifying", Source: source, Destination: destination,
+		TransferredBytes: localBytes, TotalBytes: initial.Size(), ResumedBytes: offset,
+	})
 	remoteReader, err := e.Remote.Open(partialPath)
 	if err != nil {
 		return Result{}, verrors.Wrap(verrors.CodeVerificationFailed, "could not reopen the remote partial file", err)
@@ -276,6 +308,10 @@ func (e Engine) copyFile(ctx context.Context, source, destination string, option
 	if err := e.applyFilePolicy(partialPath, initial, options); err != nil {
 		return Result{}, err
 	}
+	e.report(options, Progress{
+		Phase: "finalizing", Source: source, Destination: destination,
+		TransferredBytes: localBytes, TotalBytes: initial.Size(), ResumedBytes: offset,
+	})
 	if options.Overwrite {
 		if _, statErr := e.Remote.Lstat(destination); statErr == nil {
 			if err := e.Remote.Remove(destination); err != nil {
@@ -290,6 +326,10 @@ func (e Engine) copyFile(ctx context.Context, source, destination string, option
 	}
 	_ = e.Remote.Remove(sidecarPath)
 	result.Bytes, result.SHA256, result.Verified = localBytes, localDigest, true
+	e.report(options, Progress{
+		Phase: "verified", Source: source, Destination: destination,
+		TransferredBytes: localBytes, TotalBytes: initial.Size(), ResumedBytes: offset,
+	})
 	return result, nil
 }
 
@@ -363,7 +403,7 @@ func (e Engine) preparePartial(source, partialPath, sidecarPath string, expected
 	return 0, nil
 }
 
-func (e Engine) upload(ctx context.Context, source, partialPath string, offset int64) (string, int64, error) {
+func (e Engine) upload(ctx context.Context, source, partialPath string, offset int64, progress func(int64)) (string, int64, error) {
 	local, err := os.Open(source)
 	if err != nil {
 		return "", 0, verrors.Wrap(verrors.CodeInvalidLocalPath, "the source could not be reopened", err)
@@ -383,7 +423,14 @@ func (e Engine) upload(ctx context.Context, source, partialPath string, offset i
 	if _, err := remote.Seek(offset, io.SeekStart); err != nil {
 		return "", 0, verrors.Wrap(verrors.CodeTransferFailed, "could not seek the remote partial file for resume", err)
 	}
-	written, err := io.Copy(io.MultiWriter(remote, hash), &contextReader{ctx: ctx, reader: local})
+	written, err := io.Copy(&progressWriter{
+		writer: io.MultiWriter(remote, hash),
+		onWrite: func(written int64) {
+			if progress != nil {
+				progress(offset + written)
+			}
+		},
+	}, &contextReader{ctx: ctx, reader: local})
 	if err != nil {
 		if ctx.Err() != nil {
 			return "", offset + written, verrors.Wrap(verrors.CodeTransferInterrupted,
@@ -393,6 +440,21 @@ func (e Engine) upload(ctx context.Context, source, partialPath string, offset i
 			"the connection ended before upload completed; compatible partial state was retained", err)
 	}
 	return hex.EncodeToString(hash.Sum(nil)), offset + written, nil
+}
+
+type progressWriter struct {
+	writer  io.Writer
+	written int64
+	onWrite func(int64)
+}
+
+func (w *progressWriter) Write(data []byte) (int, error) {
+	n, err := w.writer.Write(data)
+	if n > 0 {
+		w.written += int64(n)
+		w.onWrite(w.written)
+	}
+	return n, err
 }
 
 func (e Engine) applyFilePolicy(remotePath string, source fs.FileInfo, options Options) error {

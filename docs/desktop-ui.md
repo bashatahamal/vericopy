@@ -29,12 +29,13 @@ does not yet expose, such as per-byte UI progress or persisted history.
 
 | Stage | Status | Scope |
 | --- | --- | --- |
-| Branded shell and reviewed transfer form | In progress | Desktop-first workspace derived from the Basha editorial tokens |
-| Local source and destination review | In progress | Native source selection plus path and remote-spec validation |
-| Verified transfer execution | In progress | Native SFTP, strict host identity, resume, SHA-256, and permissions |
-| Saved connection profiles | Planned | Non-secret host, user, port, and known-hosts references only |
-| Progress and cancellation detail | Planned | Engine progress events and safe interruption controls |
-| Transfer history and exports | Planned | Local, user-controlled history with redaction |
+| Branded shell and reviewed transfer form | Implemented, native acceptance pending | Desktop-first workspace derived from the Basha editorial tokens |
+| Local source and destination review | Implemented, native acceptance pending | Native source selection plus path and remote-spec validation |
+| Verified transfer execution | Implemented, native acceptance pending | Native SFTP, strict host identity, resume, SHA-256, and permissions |
+| Saved connection profiles | Implemented, native acceptance pending | Non-secret remote target, port, and known-hosts reference only |
+| Progress and cancellation detail | Implemented, native acceptance pending | Engine-backed per-file byte progress, SHA-256 state, and safe interruption controls |
+| Transfer history and exports | Implemented, native acceptance pending | Local, user-controlled redacted history; exports remain out of scope for this milestone |
+| Native packaging and signing | Planned | Per-platform Wails package builds, signing, checksums, and release evidence |
 | Accessibility and acceptance runs | Planned | Keyboard, screen-reader, reduced-motion, and three-platform QA |
 
 ## Security rules in the UI
@@ -48,6 +49,9 @@ does not yet expose, such as per-byte UI progress or persisted history.
   out of scope.
 - The result view distinguishes completed verification from an interrupted or
   unverified transfer.
+- Saved profiles exclude source paths and identity key paths. History excludes
+  complete source paths, complete remote paths, identity paths, known-hosts
+  paths, and SHA-256 values.
 
 ## Technology boundary
 

@@ -33,6 +33,9 @@ func newBridge() *Bridge {
 func (b *Bridge) startup(ctx context.Context) {
 	b.ctx = ctx
 	b.service.SetContext(ctx)
+	b.service.SetProgressHandler(func(progress desktop.TransferProgress) {
+		runtime.EventsEmit(ctx, "transfer:progress", progress)
+	})
 }
 
 func (b *Bridge) shutdown(_ context.Context) {
@@ -57,6 +60,26 @@ func (b *Bridge) StartTransfer(request desktop.TransferRequest) (desktop.Transfe
 
 func (b *Bridge) CancelTransfer() bool {
 	return b.service.CancelTransfer()
+}
+
+func (b *Bridge) ListProfiles() ([]desktop.ConnectionProfile, error) {
+	return b.service.ListProfiles()
+}
+
+func (b *Bridge) SaveProfile(profile desktop.ConnectionProfile) (desktop.ConnectionProfile, error) {
+	return b.service.SaveProfile(profile)
+}
+
+func (b *Bridge) DeleteProfile(id string) (bool, error) {
+	return b.service.DeleteProfile(id)
+}
+
+func (b *Bridge) ListTransferHistory() ([]desktop.TransferHistoryEntry, error) {
+	return b.service.ListTransferHistory()
+}
+
+func (b *Bridge) ClearTransferHistory() error {
+	return b.service.ClearTransferHistory()
 }
 
 func (b *Bridge) SelectSourceFile() (string, error) {

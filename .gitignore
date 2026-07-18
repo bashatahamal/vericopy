@@ -3,6 +3,7 @@
 /dist/
 /build/
 /vericopy-desktop
+/cmd/vericopy-desktop/build/
 /coverage/
 *.coverprofile
 *.test

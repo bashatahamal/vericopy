@@ -29,5 +29,9 @@ Changelog, and releases follow Semantic Versioning.
 - Branded repository banner, security model, architecture diagrams, platform
   contract, debugging guides, release verification, and contribution policies.
 - Living product status, roadmap, acceptance evidence, and version tracker.
+- Desktop connection profiles that persist only non-secret remote destination,
+  port, and known-hosts references on the local machine.
+- Engine-backed per-file desktop progress and redacted, user-clearable local
+  transfer history.
 
 [Unreleased]: https://github.com/bashatahamal/vericopy/compare/v0.1.0...HEAD

@@ -20,6 +20,8 @@
           <nav class="nav-list">
             <button class="nav-link is-active" type="button" data-view="overview">Overview</button>
             <button class="nav-link" type="button" data-view="transfer">New transfer</button>
+            <button class="nav-link" type="button" data-view="profiles">Connections</button>
+            <button class="nav-link" type="button" data-view="activity">Activity</button>
           </nav>
           <div class="sidebar-note">
             <span class="section-number">01</span>
@@ -93,6 +95,11 @@
                       <div><label for="port">SSH port</label><input id="port" name="port" type="number" min="1" max="65535" value="22" /></div>
                       <div><label for="permissions">Destination policy</label><select id="permissions" name="permissions"><option value="private">Private — SSH account only</option><option value="shared">Shared — read/write group</option><option value="service-readonly">Service readonly — owner writes, group reads</option><option value="public-readonly">Public readonly — published files</option><option value="preserve">Preserve POSIX mode</option></select></div>
                     </div>
+                    <div class="profile-controls">
+                      <div><label for="profile-select">Saved connection <span class="optional">optional</span></label><select id="profile-select" name="profile-select"><option value="">No saved connection</option></select></div>
+                      <div><label for="profile-name">Save as <span class="optional">no keys or source paths</span></label><input id="profile-name" name="profile-name" type="text" maxlength="80" placeholder="Reports server" autocomplete="off" /></div>
+                      <button class="button button-secondary" type="button" id="save-profile">Save connection</button>
+                    </div>
                   </fieldset>
 
                   <fieldset>
@@ -117,11 +124,39 @@
                     <dl class="review-list" id="review-list"></dl>
                     <p class="review-security">Strict known_hosts verification remains mandatory when the transfer starts.</p>
                   </div>
+                  <div class="progress-panel" id="progress-panel" hidden>
+                    <p class="card-label" id="progress-phase">Preparing transfer</p>
+                    <strong id="progress-file">Waiting for confirmation</strong>
+                    <progress id="progress-meter" max="1" value="0"></progress>
+                    <p id="progress-detail">No connection has been opened.</p>
+                  </div>
                   <div class="review-actions"><button class="button button-secondary" type="submit" id="review-button">Review transfer</button><button class="button button-primary" type="button" id="start-transfer" disabled>Confirm &amp; transfer</button><button class="button button-quiet" type="button" id="cancel-transfer" hidden>Cancel transfer</button></div>
                   <div class="notice" id="notice" hidden role="status"></div>
                 </aside>
               </div>
             </form>
+          </section>
+
+          <section id="profiles" class="view" data-view-panel="profiles" aria-labelledby="profiles-title">
+            <div class="page-heading">
+              <p class="section-number">Connections</p>
+              <h1 id="profiles-title">Keep connection details, not secrets.</h1>
+              <p class="lede">Saved connections keep an explicit remote target, port, and known_hosts reference on this computer. They never retain a local source or SSH private-key path.</p>
+            </div>
+            <div class="collection-heading"><p class="card-label">Saved connections</p><button class="button button-secondary" type="button" data-open-transfer>Save a connection</button></div>
+            <p class="empty-state" id="profiles-empty">No saved connections yet.</p>
+            <div class="collection-list" id="profiles-list" aria-live="polite"></div>
+          </section>
+
+          <section id="activity" class="view" data-view-panel="activity" aria-labelledby="activity-title">
+            <div class="page-heading">
+              <p class="section-number">Activity</p>
+              <h1 id="activity-title">A small, local transfer record.</h1>
+              <p class="lede">History retains outcome, timing, size, and a redacted endpoint. It omits complete local paths, private-key paths, known_hosts paths, and content hashes.</p>
+            </div>
+            <div class="collection-heading"><p class="card-label">Recent transfers</p><button class="button button-quiet" type="button" id="clear-history">Clear local history</button></div>
+            <p class="empty-state" id="history-empty">No completed, failed, or interrupted transfers have been recorded on this computer.</p>
+            <div class="collection-list" id="history-list" aria-live="polite"></div>
           </section>
         </main>
       </div>

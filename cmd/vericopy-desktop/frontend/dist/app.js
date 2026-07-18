@@ -24,6 +24,14 @@ const elements = {
   resume: document.querySelector("#resume"),
   overwrite: document.querySelector("#overwrite"),
   preserveTime: document.querySelector("#preserve-time"),
+  profileSelect: document.querySelector("#profile-select"),
+  profileName: document.querySelector("#profile-name"),
+  saveProfile: document.querySelector("#save-profile"),
+  profilesList: document.querySelector("#profiles-list"),
+  profilesEmpty: document.querySelector("#profiles-empty"),
+  historyList: document.querySelector("#history-list"),
+  historyEmpty: document.querySelector("#history-empty"),
+  clearHistory: document.querySelector("#clear-history"),
   reviewEmpty: document.querySelector("#review-empty"),
   reviewResult: document.querySelector("#review-result"),
   reviewList: document.querySelector("#review-list"),
@@ -31,15 +39,24 @@ const elements = {
   reviewButton: document.querySelector("#review-button"),
   startButton: document.querySelector("#start-transfer"),
   cancelButton: document.querySelector("#cancel-transfer"),
+  progressPanel: document.querySelector("#progress-panel"),
+  progressPhase: document.querySelector("#progress-phase"),
+  progressFile: document.querySelector("#progress-file"),
+  progressMeter: document.querySelector("#progress-meter"),
+  progressDetail: document.querySelector("#progress-detail"),
   notice: document.querySelector("#notice"),
 };
 
 let reviewedRequest = null;
+let profiles = [];
+let selectedProfileID = "";
 
 function showView(view) {
   elements.nav.forEach((button) => button.classList.toggle("is-active", button.dataset.view === view));
   elements.panels.forEach((panel) => panel.classList.toggle("is-visible", panel.dataset.viewPanel === view));
   if (view === "transfer") elements.source.focus();
+  if (view === "profiles") loadProfiles();
+  if (view === "activity") loadHistory();
 }
 
 function requestFromForm() {
@@ -56,6 +73,16 @@ function requestFromForm() {
     resume: elements.resume.checked,
     overwrite: elements.overwrite.checked,
     preserve_time: elements.preserveTime.checked,
+  };
+}
+
+function profileFromForm() {
+  return {
+    id: selectedProfileID,
+    name: elements.profileName.value.trim(),
+    destination: elements.destination.value.trim(),
+    port: Number(elements.port.value || 22),
+    known_hosts: elements.knownHosts.value.trim(),
   };
 }
 
@@ -100,6 +127,46 @@ function invalidateReview() {
   setNotice("");
 }
 
+function formatBytes(bytes) {
+  if (!Number.isFinite(bytes) || bytes < 1024) return `${Math.max(0, bytes || 0)} B`;
+  const units = ["KB", "MB", "GB", "TB"];
+  let value = bytes;
+  let index = -1;
+  do {
+    value /= 1024;
+    index += 1;
+  } while (value >= 1024 && index < units.length - 1);
+  return `${value.toFixed(value >= 10 ? 0 : 1)} ${units[index]}`;
+}
+
+function displayProgress(update) {
+  const labels = {
+    connecting: "Connecting",
+    preparing: "Preparing",
+    uploading: "Sending current file",
+    verifying: "Verifying SHA-256",
+    finalizing: "Applying policy and finalizing",
+    verified: "Current file verified",
+    completed: "Transfer verified",
+    interrupted: "Transfer interrupted",
+    failed: "Transfer failed",
+  };
+  elements.progressPanel.hidden = false;
+  elements.progressPhase.textContent = labels[update.phase] || "Transfer update";
+  elements.progressFile.textContent = update.file_name || update.message || "Working…";
+  if (update.total_bytes > 0) {
+    const transferred = Math.min(update.transferred_bytes || 0, update.total_bytes);
+    elements.progressMeter.max = update.total_bytes;
+    elements.progressMeter.value = transferred;
+    const percentage = Math.round((transferred / update.total_bytes) * 100);
+    const resumed = update.resumed_bytes > 0 ? ` · ${formatBytes(update.resumed_bytes)} already present` : "";
+    elements.progressDetail.textContent = `${formatBytes(transferred)} of ${formatBytes(update.total_bytes)} · ${percentage}%${resumed}`;
+  } else {
+    elements.progressMeter.removeAttribute("value");
+    elements.progressDetail.textContent = update.message || "Waiting for the next transfer stage.";
+  }
+}
+
 async function reviewTransfer() {
   const request = requestFromForm();
   elements.reviewButton.disabled = true;
@@ -121,6 +188,7 @@ async function startTransfer() {
   if (!reviewedRequest) return;
   elements.startButton.disabled = true;
   elements.cancelButton.hidden = false;
+  displayProgress({ phase: "connecting", message: "Opening a strict SSH connection" });
   setNotice("Transferring through native SFTP. Finalization waits for SHA-256 verification.");
   try {
     const outcome = await invoke("StartTransfer", reviewedRequest);
@@ -131,6 +199,7 @@ async function startTransfer() {
   } finally {
     elements.cancelButton.hidden = true;
     elements.startButton.disabled = !reviewedRequest;
+    loadHistory();
   }
 }
 
@@ -142,6 +211,149 @@ async function choose(method, destination, recursive = false) {
       if (recursive) elements.recursive.checked = true;
       invalidateReview();
     }
+  } catch (error) {
+    setNotice(error?.message || String(error), "error");
+  }
+}
+
+function profileCard(profile) {
+  const card = document.createElement("article");
+  card.className = "collection-card";
+  const content = document.createElement("div");
+  const title = document.createElement("h2");
+  const destination = document.createElement("p");
+  const metadata = document.createElement("p");
+  title.textContent = profile.name;
+  destination.textContent = `${profile.destination} · port ${profile.port}`;
+  metadata.className = "meta";
+  metadata.textContent = `known_hosts: ${profile.known_hosts}`;
+  content.append(title, destination, metadata);
+  const actions = document.createElement("div");
+  actions.className = "collection-actions";
+  const apply = document.createElement("button");
+  apply.type = "button";
+  apply.className = "button button-secondary";
+  apply.textContent = "Use connection";
+  apply.addEventListener("click", () => {
+    applyProfile(profile);
+    showView("transfer");
+  });
+  const remove = document.createElement("button");
+  remove.type = "button";
+  remove.className = "button button-quiet";
+  remove.textContent = "Remove";
+  remove.addEventListener("click", () => deleteProfile(profile));
+  actions.append(apply, remove);
+  card.append(content, actions);
+  return card;
+}
+
+function renderProfiles() {
+  elements.profileSelect.replaceChildren();
+  const emptyOption = document.createElement("option");
+  emptyOption.value = "";
+  emptyOption.textContent = "No saved connection";
+  elements.profileSelect.append(emptyOption);
+  profiles.forEach((profile) => {
+    const option = document.createElement("option");
+    option.value = profile.id;
+    option.textContent = profile.name;
+    elements.profileSelect.append(option);
+  });
+  elements.profileSelect.value = selectedProfileID;
+  elements.profilesList.replaceChildren(...profiles.map(profileCard));
+  elements.profilesEmpty.hidden = profiles.length > 0;
+}
+
+async function loadProfiles() {
+  try {
+    profiles = await invoke("ListProfiles");
+    renderProfiles();
+  } catch (error) {
+    elements.profilesEmpty.hidden = false;
+    elements.profilesEmpty.textContent = error?.message || String(error);
+  }
+}
+
+function applyProfile(profile) {
+  selectedProfileID = profile.id;
+  elements.destination.value = profile.destination;
+  elements.port.value = profile.port;
+  elements.knownHosts.value = profile.known_hosts;
+  elements.profileName.value = profile.name;
+  renderProfiles();
+  invalidateReview();
+}
+
+async function saveProfile() {
+  if (!elements.profileName.value.trim()) {
+    setNotice("Enter a profile name before saving the connection.", "error");
+    elements.profileName.focus();
+    return;
+  }
+  elements.saveProfile.disabled = true;
+  try {
+    const saved = await invoke("SaveProfile", profileFromForm());
+    selectedProfileID = saved.id;
+    elements.profileName.value = saved.name;
+    await loadProfiles();
+    setNotice("Saved the non-secret connection reference on this computer.", "success");
+  } catch (error) {
+    setNotice(error?.message || String(error), "error");
+  } finally {
+    elements.saveProfile.disabled = false;
+  }
+}
+
+async function deleteProfile(profile) {
+  try {
+    const removed = await invoke("DeleteProfile", profile.id);
+    if (removed && selectedProfileID === profile.id) {
+      selectedProfileID = "";
+      elements.profileName.value = "";
+    }
+    await loadProfiles();
+  } catch (error) {
+    setNotice(error?.message || String(error), "error");
+  }
+}
+
+function historyCard(entry) {
+  const card = document.createElement("article");
+  card.className = "collection-card";
+  const content = document.createElement("div");
+  const title = document.createElement("h2");
+  const destination = document.createElement("p");
+  const metadata = document.createElement("p");
+  title.textContent = entry.source_name || "Transfer";
+  destination.textContent = entry.destination;
+  metadata.className = "meta";
+  const completed = entry.completed_at ? new Date(entry.completed_at).toLocaleString() : "Unknown time";
+  metadata.textContent = `${completed} · ${formatBytes(entry.bytes || 0)}${entry.resumed_bytes ? ` · resumed ${formatBytes(entry.resumed_bytes)}` : ""}${entry.diagnostic_code ? ` · ${entry.diagnostic_code}` : ""}`;
+  content.append(title, destination, metadata);
+  const status = document.createElement("span");
+  status.className = `history-status${entry.status === "verified" ? "" : ` is-${entry.status}`}`;
+  status.textContent = entry.status || "unknown";
+  card.append(content, status);
+  return card;
+}
+
+async function loadHistory() {
+  try {
+    const history = await invoke("ListTransferHistory");
+    elements.historyList.replaceChildren(...history.map(historyCard));
+    elements.historyEmpty.hidden = history.length > 0;
+  } catch (error) {
+    elements.historyEmpty.hidden = false;
+    elements.historyEmpty.textContent = error?.message || String(error);
+  }
+}
+
+async function clearHistory() {
+  if (!window.confirm("Clear this computer's redacted transfer history?")) return;
+  try {
+    await invoke("ClearTransferHistory");
+    await loadHistory();
   } catch (error) {
     setNotice(error?.message || String(error), "error");
   }
@@ -160,6 +372,12 @@ async function loadDashboard() {
   }
 }
 
+function subscribeToProgress() {
+  if (typeof window.runtime?.EventsOn === "function") {
+    window.runtime.EventsOn("transfer:progress", displayProgress);
+  }
+}
+
 elements.nav.forEach((button) => button.addEventListener("click", () => showView(button.dataset.view)));
 document.querySelectorAll("[data-open-transfer]").forEach((button) => button.addEventListener("click", () => showView("transfer")));
 elements.form.addEventListener("submit", (event) => { event.preventDefault(); reviewTransfer(); });
@@ -168,9 +386,22 @@ elements.cancelButton.addEventListener("click", async () => {
   const cancelled = await invoke("CancelTransfer");
   setNotice(cancelled ? "Cancellation requested. Compatible partial state is retained for resume." : "No active transfer to cancel.");
 });
+elements.profileSelect.addEventListener("change", () => {
+  const profile = profiles.find((item) => item.id === elements.profileSelect.value);
+  if (profile) applyProfile(profile);
+  if (!profile) {
+    selectedProfileID = "";
+    elements.profileName.value = "";
+  }
+});
+elements.saveProfile.addEventListener("click", saveProfile);
+elements.clearHistory.addEventListener("click", clearHistory);
 document.querySelector("#choose-file").addEventListener("click", () => choose("SelectSourceFile", elements.source));
 document.querySelector("#choose-folder").addEventListener("click", () => choose("SelectSourceDirectory", elements.source, true));
 document.querySelector("#choose-identity").addEventListener("click", () => choose("SelectIdentityFile", elements.identity));
 [elements.source, elements.destination, elements.port, elements.permissions, elements.identity, elements.knownHosts, elements.group, elements.readableBy, elements.recursive, elements.resume, elements.overwrite, elements.preserveTime].forEach((field) => field.addEventListener("input", invalidateReview));
 
+subscribeToProgress();
 loadDashboard();
+loadProfiles();
+loadHistory();

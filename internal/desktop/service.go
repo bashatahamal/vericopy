@@ -7,6 +7,8 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 
@@ -24,15 +26,29 @@ import (
 // Service coordinates desktop requests without making the frontend responsible
 // for any security-sensitive decision.
 type Service struct {
-	mu     sync.Mutex
-	root   context.Context
-	cancel context.CancelFunc
-	active bool
+	mu           sync.Mutex
+	root         context.Context
+	cancel       context.CancelFunc
+	active       bool
+	state        *StateStore
+	progress     func(TransferProgress)
+	lastProgress time.Time
 }
 
 // NewService creates the desktop service boundary.
 func NewService() *Service {
-	return &Service{root: context.Background()}
+	statePath, err := DefaultStatePath()
+	if err != nil {
+		statePath = ""
+	}
+	return NewServiceWithStatePath(statePath)
+}
+
+// NewServiceWithStatePath creates a desktop service using an explicit local
+// state path. It is useful for isolated desktop tests and does not change any
+// transfer security behavior.
+func NewServiceWithStatePath(statePath string) *Service {
+	return &Service{root: context.Background(), state: newStateStore(statePath)}
 }
 
 // SetContext connects the service lifetime to the native application lifetime.
@@ -40,6 +56,14 @@ func (s *Service) SetContext(ctx context.Context) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.root = ctx
+}
+
+// SetProgressHandler connects truthful engine progress to the native shell.
+// The handler receives state only; it cannot alter a transfer.
+func (s *Service) SetProgressHandler(handler func(TransferProgress)) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.progress = handler
 }
 
 // Dashboard provides non-secret local readiness information for the home view.
@@ -125,6 +149,17 @@ type TransferResult struct {
 	Summary string          `json:"summary"`
 }
 
+// TransferProgress is a per-file update for the desktop UI. Directory
+// transfers intentionally report the active file, not an invented total.
+type TransferProgress struct {
+	Phase            string `json:"phase"`
+	FileName         string `json:"file_name,omitempty"`
+	TransferredBytes int64  `json:"transferred_bytes,omitempty"`
+	TotalBytes       int64  `json:"total_bytes,omitempty"`
+	ResumedBytes     int64  `json:"resumed_bytes,omitempty"`
+	Message          string `json:"message,omitempty"`
+}
+
 type preparedTransfer struct {
 	request     TransferRequest
 	source      string
@@ -184,6 +219,11 @@ func prepare(request TransferRequest) (preparedTransfer, error) {
 			"the desktop app requires an explicit SSH user in the destination").WithHint(
 			"Use user@host:/absolute/remote/path so the account is clear before transfer.")
 	}
+	if !strings.HasPrefix(destination.Path, "/") {
+		return preparedTransfer{}, verrors.New(verrors.CodeInvalidArguments,
+			"the desktop app requires an absolute remote path").WithHint(
+			"Use user@host:/absolute/remote/path so the destination is unambiguous.")
+	}
 	policy, err := permissions.Resolve(request.Permissions, "", "")
 	if err != nil {
 		return preparedTransfer{}, err
@@ -211,6 +251,8 @@ func (s *Service) StartTransfer(request TransferRequest) (transfer.Result, error
 	if err != nil {
 		return transfer.Result{}, err
 	}
+	startedAt := time.Now().UTC()
+	s.emitProgress(TransferProgress{Phase: "connecting", FileName: filepath.Base(prepared.source), Message: "Connecting with strict host verification"})
 	ctx, finish, err := s.beginTransfer()
 	if err != nil {
 		return transfer.Result{}, err
@@ -222,12 +264,12 @@ func (s *Service) StartTransfer(request TransferRequest) (transfer.Result, error
 		KnownHosts: prepared.request.KnownHosts, Identity: prepared.request.Identity, Timeout: 15 * time.Second,
 	})
 	if err != nil {
-		return transfer.Result{}, err
+		return s.completeTransfer(prepared, startedAt, transfer.Result{}, err)
 	}
 	defer sshConnection.Close()
 	remoteFS, err := nativesftp.New(sshConnection)
 	if err != nil {
-		return transfer.Result{}, verrors.Wrap(verrors.CodeConnectionFailed, "the server did not accept the SFTP subsystem", err)
+		return s.completeTransfer(prepared, startedAt, transfer.Result{}, verrors.Wrap(verrors.CodeConnectionFailed, "the server did not accept the SFTP subsystem", err))
 	}
 	defer remoteFS.Close()
 
@@ -236,7 +278,7 @@ func (s *Service) StartTransfer(request TransferRequest) (transfer.Result, error
 	if prepared.request.Group != "" {
 		resolved, resolveErr := resolver.Group(ctx, prepared.request.Group)
 		if resolveErr != nil {
-			return transfer.Result{}, resolveErr
+			return s.completeTransfer(prepared, startedAt, transfer.Result{}, resolveErr)
 		}
 		gid = &resolved
 	}
@@ -244,21 +286,95 @@ func (s *Service) StartTransfer(request TransferRequest) (transfer.Result, error
 	result, err := (transfer.Engine{Remote: remoteFS}).Copy(ctx, prepared.source, prepared.destination.Path, transfer.Options{
 		Recursive: prepared.request.Recursive, Resume: prepared.request.Resume,
 		Overwrite: prepared.request.Overwrite, PreserveTime: prepared.request.PreserveTime,
-		Policy: prepared.policy, GID: gid,
+		Policy: prepared.policy, GID: gid, Progress: s.transferProgress,
 	})
 	if err != nil {
-		return transfer.Result{}, err
+		return s.completeTransfer(prepared, startedAt, result, err)
 	}
 	if prepared.request.ReadableBy != "" {
 		identity, resolveErr := resolver.User(ctx, prepared.request.ReadableBy)
 		if resolveErr != nil {
-			return transfer.Result{}, resolveErr
+			return s.completeTransfer(prepared, startedAt, result, resolveErr)
 		}
 		if _, checkErr := access.Check(ctx, remoteFS, result.Destination, identity); checkErr != nil {
-			return transfer.Result{}, checkErr
+			return s.completeTransfer(prepared, startedAt, result, checkErr)
 		}
 	}
-	return result, nil
+	return s.completeTransfer(prepared, startedAt, result, nil)
+}
+
+// ListProfiles returns saved non-secret connection references.
+func (s *Service) ListProfiles() ([]ConnectionProfile, error) {
+	return s.state.ListProfiles()
+}
+
+// SaveProfile creates or updates a saved non-secret connection reference.
+func (s *Service) SaveProfile(profile ConnectionProfile) (ConnectionProfile, error) {
+	return s.state.SaveProfile(profile)
+}
+
+// DeleteProfile removes one saved connection reference.
+func (s *Service) DeleteProfile(id string) (bool, error) {
+	return s.state.DeleteProfile(id)
+}
+
+// ListTransferHistory returns redacted local transfer records.
+func (s *Service) ListTransferHistory() ([]TransferHistoryEntry, error) {
+	return s.state.ListTransferHistory()
+}
+
+// ClearTransferHistory removes all local redacted transfer records.
+func (s *Service) ClearTransferHistory() error {
+	return s.state.ClearTransferHistory()
+}
+
+func (s *Service) completeTransfer(prepared preparedTransfer, startedAt time.Time, result transfer.Result, transferErr error) (transfer.Result, error) {
+	entry := TransferHistoryEntry{
+		StartedAt: startedAt, CompletedAt: time.Now().UTC(), SourceName: filepath.Base(prepared.source),
+		Destination: redactedDestination(prepared.destination), Files: result.Files, Bytes: result.Bytes,
+		ResumedBytes: result.ResumedBytes, Verified: result.Verified,
+	}
+	if entry.SourceName == "." || entry.SourceName == string(filepath.Separator) {
+		entry.SourceName = "source"
+	}
+	if transferErr == nil {
+		entry.Status = "verified"
+		s.emitProgress(TransferProgress{Phase: "completed", FileName: entry.SourceName, TransferredBytes: result.Bytes, TotalBytes: result.Bytes, Message: "Transfer verified"})
+	} else {
+		diagnostic := verrors.As(transferErr)
+		entry.DiagnosticCode = diagnostic.Code
+		entry.Status = "failed"
+		if diagnostic.Code == verrors.CodeTransferInterrupted {
+			entry.Status = "interrupted"
+		}
+		s.emitProgress(TransferProgress{Phase: entry.Status, FileName: entry.SourceName, Message: diagnostic.Message})
+	}
+	_ = s.state.recordHistory(entry)
+	return result, transferErr
+}
+
+func (s *Service) transferProgress(update transfer.Progress) {
+	s.emitProgress(TransferProgress{
+		Phase: update.Phase, FileName: filepath.Base(update.Source), TransferredBytes: update.TransferredBytes,
+		TotalBytes: update.TotalBytes, ResumedBytes: update.ResumedBytes,
+	})
+}
+
+func (s *Service) emitProgress(update TransferProgress) {
+	s.mu.Lock()
+	handler := s.progress
+	if handler == nil {
+		s.mu.Unlock()
+		return
+	}
+	now := time.Now()
+	if update.Phase == "uploading" && update.TotalBytes > 0 && update.TransferredBytes < update.TotalBytes && now.Sub(s.lastProgress) < 100*time.Millisecond {
+		s.mu.Unlock()
+		return
+	}
+	s.lastProgress = now
+	s.mu.Unlock()
+	handler(update)
 }
 
 func (s *Service) beginTransfer() (context.Context, func(), error) {

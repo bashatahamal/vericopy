@@ -3,7 +3,7 @@
 This is the living record of what Vericopy is building, what is complete, and
 what comes next. Update it with every meaningful product or release change.
 
-Last updated: 2026-07-17
+Last updated: 2026-07-18
 
 ## Product vision
 
@@ -36,8 +36,9 @@ the CLI.
 | M2: secure single-file transfer | Complete | Unit and isolated OpenSSH evidence pass |
 | M3: directory and permission policies | Complete | Unit and isolated OpenSSH evidence pass |
 | M4: optional rsync adapter | Complete | Binary dialect detection and safe argument-only execution |
-| M5: release candidate | Complete | Unit, race, integration, static, vulnerability, and release checks pass |
-| M6: desktop foundation | In progress | Branded native shell validates and executes a transfer through the shared engine |
+| M5: CLI release pipeline | Complete | Unit, race, integration, static, vulnerability, and CLI release checks pass |
+| M6: desktop workflow | In progress | Branded native shell, non-secret profiles, truthful progress, and redacted history operate through the shared engine |
+| M7: desktop release | Planned | Native packages and acceptance evidence exist for Windows, macOS, and Linux |
 
 Status values are `Planned`, `In progress`, `Blocked`, and `Complete`. A
 milestone becomes complete only when its acceptance signal is verified.
@@ -58,24 +59,31 @@ milestone becomes complete only when its acceptance signal is verified.
 - [x] Add a branded Wails desktop shell backed by the shared Go transfer engine.
 - [x] Add desktop request review, native source/key selection, confirmation,
   cancellation, and verified SFTP execution boundaries.
+- [x] Add non-secret saved connections, engine-backed per-file progress, and
+  redacted, locally controlled transfer history.
+- [x] Repair the Windows path, OpenSSH integration, and Go patch-level CI
+  failures; all GitHub pull-request checks now pass.
 - [ ] Create and verify the first release tag.
 - [ ] Complete desktop workflow acceptance on Windows, macOS, and Linux.
+- [ ] Build signed native desktop packages on their respective target platforms.
 
 ## Now
 
-1. Restore the three failing GitHub Actions checks and confirm the first runs.
-2. Exercise a disposable Linux host from the desktop app, Windows PowerShell,
-   and Git Bash.
-3. Validate the desktop app in native Windows, macOS, and Linux sessions.
+1. Exercise a disposable SSH host from the desktop app using an ordinary test
+   folder, then verify the checksum result, cancellation, and resume behavior.
+2. Validate the desktop app in native Windows, macOS, and Linux sessions using
+   the [desktop acceptance checklist](desktop-acceptance.md).
+3. Build a native desktop package on each target operating system and record
+   the produced artifact names and checksums.
 
 ## Next
 
-1. Add saved non-secret connection profiles, progress reporting, and transfer
-   history to the desktop experience.
-2. Close any defects found by desktop and Windows acceptance runs.
+1. Close any defects found by native desktop and Windows acceptance runs.
+2. Add release automation for native desktop packages after the three native
+   package commands have been proven outside a cross-compilation assumption.
 3. Prepare `0.1.0` release artifacts and a signed version tag.
-4. Enable required GitHub checks, private security reporting, tag protection,
-   and artifact attestations before publishing the first release.
+4. Review the required GitHub checks, private security reporting, release-tag
+   protection, and artifact attestations after the first draft release.
 
 ## Acceptance checklist
 
@@ -106,6 +114,9 @@ milestone becomes complete only when its acceptance signal is verified.
 - [x] Linux, macOS, and Windows release builds pass.
 - [x] GoReleaser 2.15.4 validates the release configuration.
 - [x] Documentation, security review, secret scan, and asset review are complete.
+- [x] `main` requires passing CI/CodeQL checks and resolved conversations;
+  Dependabot alerts/updates, private reporting, and immutable `v*` release tags
+  are enabled in GitHub.
 
 ## Verification evidence
 
@@ -124,6 +135,7 @@ Verified on 2026-07-17 with Go 1.26.5 on Linux/amd64:
 | GoReleaser 2.15.4 configuration check | Pass with temporary local remote metadata |
 | Banner SVG render and visual inspection | Pass |
 | `git diff --check` and public-text sweep | Pass |
+| GitHub Actions pull-request checks | Pass: Ubuntu, macOS, Windows, race, OpenSSH, static/vulnerability, cross-build, and CodeQL |
 | Direct host race detector | Not available: cgo and a C compiler are absent |
 | Docker Desktop WSL CLI | Not available: WSL integration is disabled |
 
@@ -142,18 +154,24 @@ is affected.
 - Race detection is unavailable because cgo and a C compiler are absent.
 - The installed Windows Go toolchain is available, and a verified project-local
   Linux Go toolchain is used for development checks.
-- No remote repository, publishing, push, or pull request is authorized.
+- Wails packages must be produced on native target operating systems; generic
+  Go cross-builds do not create an installable Wails application bundle.
+- A Windows code-signing certificate, Apple Developer signing/notarization
+  credentials, and final Linux package-format decision are not available in
+  this workspace. These remain release gates, not bypassable build switches.
 
 ## Decision log
 
 | Date | Decision | Reason |
 | --- | --- | --- |
-| 2026-07-17 | Native CLI is the product UI | The transfer and diagnostic workflow belongs in terminals and automation. |
+| 2026-07-17 | Desktop is the primary product UI; CLI remains first-class | The app makes safe transfers operable without removing automation or diagnostics. |
 | 2026-07-17 | Native SFTP is the required default backend | It avoids shell interpolation and external rsync path ambiguity. |
 | 2026-07-17 | Version starts at `0.1.0-dev` | The command contract exists before the first stable release. |
 | 2026-07-17 | Track status in one living document | Vision, delivery state, next work, and acceptance evidence remain reviewable. |
 | 2026-07-17 | Derive, do not copy, the reference branding | Preserve accessibility and licensing clarity while keeping visual continuity. |
 | 2026-07-17 | Verify containers with Podman when Docker Desktop WSL is unavailable | The scripts retain Docker defaults and allow an equivalent local runtime. |
+| 2026-07-18 | Keep profiles and history local and redacted | Connection references are useful convenience data; source paths, key paths, full remote paths, and digests are not needed for the history view. |
+| 2026-07-18 | Protect mainline and release references in GitHub | All current CI checks gate `main`; release tags can be created once but not moved or deleted. |
 
 ## Update protocol
 

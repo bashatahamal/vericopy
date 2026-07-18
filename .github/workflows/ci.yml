@@ -29,8 +29,14 @@ jobs:
         run: test -z "$(gofmt -l .)"
       - name: Unit tests
         run: go test -count=1 ./...
+      - name: Desktop binding tests
+        if: runner.os == 'Linux'
+        run: go test -tags desktop -count=1 ./...
       - name: Vet
         run: go vet ./...
+      - name: Desktop binding vet
+        if: runner.os == 'Linux'
+        run: go vet -tags desktop ./...
 
   race:
     name: Race detector

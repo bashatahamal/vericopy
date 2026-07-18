@@ -64,6 +64,46 @@ func TestCopyAndVerify(t *testing.T) {
 	}
 }
 
+func TestCopyReportsTruthfulFileProgress(t *testing.T) {
+	source := filepath.Join(t.TempDir(), "annual-report.pdf")
+	content := strings.Repeat("progress-evidence", 4096)
+	if err := os.WriteFile(source, []byte(content), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	remoteFS := localRemote{root: t.TempDir()}
+	policy, _ := permissions.Resolve("private", "", "")
+	var updates []transfer.Progress
+	_, err := (transfer.Engine{Remote: remoteFS}).Copy(context.Background(), source, "/shared/annual-report.pdf", transfer.Options{
+		Policy: policy,
+		Progress: func(progress transfer.Progress) {
+			updates = append(updates, progress)
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(updates) == 0 {
+		t.Fatal("expected progress updates")
+	}
+	var sawUpload, sawVerify, sawFinal bool
+	for _, update := range updates {
+		if update.TotalBytes != int64(len(content)) {
+			t.Fatalf("unexpected progress total: %#v", update)
+		}
+		switch update.Phase {
+		case "uploading":
+			sawUpload = update.TransferredBytes <= update.TotalBytes
+		case "verifying":
+			sawVerify = update.TransferredBytes == update.TotalBytes
+		case "verified":
+			sawFinal = update.TransferredBytes == update.TotalBytes
+		}
+	}
+	if !sawUpload || !sawVerify || !sawFinal {
+		t.Fatalf("missing truthful progress phases: %#v", updates)
+	}
+}
+
 func TestExistingDestinationProtected(t *testing.T) {
 	source := filepath.Join(t.TempDir(), "source")
 	if err := os.WriteFile(source, []byte("new"), 0o600); err != nil {
