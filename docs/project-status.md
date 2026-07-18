@@ -61,6 +61,9 @@ milestone becomes complete only when its acceptance signal is verified.
   cancellation, and verified SFTP execution boundaries.
 - [x] Add non-secret saved connections, engine-backed per-file progress, and
   redacted, locally controlled transfer history.
+- [x] Apply the Basha Editorial design system to the desktop workspace with
+  token-driven light and dark modes, desktop-appropriate navigation, and
+  restrained interaction states.
 - [x] Repair the Windows path, OpenSSH integration, and Go patch-level CI
   failures; all GitHub pull-request checks now pass.
 - [ ] Create and verify the first release tag.
@@ -72,7 +75,8 @@ milestone becomes complete only when its acceptance signal is verified.
 1. Exercise a disposable SSH host from the desktop app using an ordinary test
    folder, then verify the checksum result, cancellation, and resume behavior.
 2. Validate the desktop app in native Windows, macOS, and Linux sessions using
-   the [desktop acceptance checklist](desktop-acceptance.md).
+   the [desktop acceptance checklist](desktop-acceptance.md), including light,
+   dark, keyboard, and reduced-motion UI states.
 3. Build a native desktop package on each target operating system and record
    the produced artifact names and checksums.
 
@@ -168,7 +172,7 @@ is affected.
 | 2026-07-17 | Native SFTP is the required default backend | It avoids shell interpolation and external rsync path ambiguity. |
 | 2026-07-17 | Version starts at `0.1.0-dev` | The command contract exists before the first stable release. |
 | 2026-07-17 | Track status in one living document | Vision, delivery state, next work, and acceptance evidence remain reviewable. |
-| 2026-07-17 | Derive, do not copy, the reference branding | Preserve accessibility and licensing clarity while keeping visual continuity. |
+| 2026-07-18 | Use the user-provided Basha Editorial system as the desktop visual source | Apply its tokens, typography roles, dark mode, and component restraint while adapting layouts to a transfer application. |
 | 2026-07-17 | Verify containers with Podman when Docker Desktop WSL is unavailable | The scripts retain Docker defaults and allow an equivalent local runtime. |
 | 2026-07-18 | Keep profiles and history local and redacted | Connection references are useful convenience data; source paths, key paths, full remote paths, and digests are not needed for the history view. |
 | 2026-07-18 | Protect mainline and release references in GitHub | All current CI checks gate `main`; release tags can be created once but not moved or deleted. |

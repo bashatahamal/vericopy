@@ -45,6 +45,7 @@ const elements = {
   progressMeter: document.querySelector("#progress-meter"),
   progressDetail: document.querySelector("#progress-detail"),
   notice: document.querySelector("#notice"),
+  themeToggle: document.querySelector("#theme-toggle"),
 };
 
 let reviewedRequest = null;
@@ -52,11 +53,55 @@ let profiles = [];
 let selectedProfileID = "";
 
 function showView(view) {
-  elements.nav.forEach((button) => button.classList.toggle("is-active", button.dataset.view === view));
+  elements.nav.forEach((button) => {
+    const active = button.dataset.view === view;
+    button.classList.toggle("is-active", active);
+    if (active) button.setAttribute("aria-current", "page");
+    else button.removeAttribute("aria-current");
+  });
   elements.panels.forEach((panel) => panel.classList.toggle("is-visible", panel.dataset.viewPanel === view));
   if (view === "transfer") elements.source.focus();
   if (view === "profiles") loadProfiles();
   if (view === "activity") loadHistory();
+}
+
+function systemTheme() {
+  return window.matchMedia?.("(prefers-color-scheme: dark)")?.matches ? "dark" : "light";
+}
+
+function activeTheme() {
+  return document.documentElement.dataset.theme || systemTheme();
+}
+
+function updateThemeToggle() {
+  const dark = activeTheme() === "dark";
+  elements.themeToggle.setAttribute("aria-pressed", String(dark));
+  elements.themeToggle.setAttribute("aria-label", dark ? "Switch to light mode" : "Switch to dark mode");
+}
+
+function setTheme(theme, persist = true) {
+  document.documentElement.dataset.theme = theme;
+  if (persist) {
+    try {
+      window.localStorage.setItem("vericopy.theme", theme);
+    } catch {
+      // Theme choice is purely presentational. A locked-down WebView may deny storage.
+    }
+  }
+  updateThemeToggle();
+}
+
+function initializeTheme() {
+  try {
+    const saved = window.localStorage.getItem("vericopy.theme");
+    if (saved === "light" || saved === "dark") {
+      setTheme(saved, false);
+      return;
+    }
+  } catch {
+    // Fall back to the operating system preference when storage is unavailable.
+  }
+  updateThemeToggle();
 }
 
 function requestFromForm() {
@@ -396,11 +441,16 @@ elements.profileSelect.addEventListener("change", () => {
 });
 elements.saveProfile.addEventListener("click", saveProfile);
 elements.clearHistory.addEventListener("click", clearHistory);
+elements.themeToggle.addEventListener("click", () => setTheme(activeTheme() === "dark" ? "light" : "dark"));
 document.querySelector("#choose-file").addEventListener("click", () => choose("SelectSourceFile", elements.source));
 document.querySelector("#choose-folder").addEventListener("click", () => choose("SelectSourceDirectory", elements.source, true));
 document.querySelector("#choose-identity").addEventListener("click", () => choose("SelectIdentityFile", elements.identity));
-[elements.source, elements.destination, elements.port, elements.permissions, elements.identity, elements.knownHosts, elements.group, elements.readableBy, elements.recursive, elements.resume, elements.overwrite, elements.preserveTime].forEach((field) => field.addEventListener("input", invalidateReview));
+[elements.source, elements.destination, elements.port, elements.permissions, elements.identity, elements.knownHosts, elements.group, elements.readableBy, elements.recursive, elements.resume, elements.overwrite, elements.preserveTime].forEach((field) => {
+  field.addEventListener("input", invalidateReview);
+  field.addEventListener("change", invalidateReview);
+});
 
+initializeTheme();
 subscribeToProgress();
 loadDashboard();
 loadProfiles();

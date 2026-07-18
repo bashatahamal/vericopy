@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="color-scheme" content="light" />
+    <meta name="color-scheme" content="light dark" />
     <title>Vericopy</title>
     <link rel="stylesheet" href="./style.css" />
   </head>
@@ -12,31 +12,38 @@
       <header class="masthead" data-wails-drag>
         <a class="wordmark" href="#overview" aria-label="Vericopy home">Vericopy<span>.</span></a>
         <p class="eyebrow">Verified local transfer workspace</p>
-        <div class="masthead-status"><span class="status-dot"></span><span>Local only</span></div>
+        <div class="masthead-tools">
+          <p class="build-note" id="build-note">Loading build identity…</p>
+          <p class="masthead-status"><span class="status-dot"></span><span>Local only</span></p>
+          <button class="theme-toggle" id="theme-toggle" type="button" aria-label="Toggle dark mode" aria-pressed="false">
+            <svg class="moon" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>
+            <svg class="sun" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 17a5 5 0 1 0 0-10 5 5 0 0 0 0 10zm0-15h0a1 1 0 0 1 1 1v2a1 1 0 1 1-2 0V3a1 1 0 0 1 1-1zm0 18a1 1 0 0 1 1 1v2a1 1 0 1 1-2 0v-2a1 1 0 0 1 1-1zM3 11h2a1 1 0 1 1 0 2H3a1 1 0 1 1 0-2zm16 0h2a1 1 0 1 1 0 2h-2a1 1 0 0 1 0-2zM5.64 4.22l1.42 1.42a1 1 0 0 1-1.42 1.42L4.22 5.64a1 1 0 1 1 1.42-1.42zm12.72 12.72 1.42 1.42a1 1 0 0 1-1.42 1.42l-1.42-1.42a1 1 0 0 1 1.42-1.42zm1.42-12.72a1 1 0 0 1 0 1.42l-1.42 1.42a1 1 0 1 1-1.42-1.42l1.42-1.42a1 1 0 0 1 1.42 0zM7.06 16.94a1 1 0 0 1 0 1.42l-1.42 1.42a1 1 0 0 1-1.42-1.42l1.42-1.42a1 1 0 0 1 1.42 0z"></path></svg>
+          </button>
+        </div>
       </header>
 
       <div class="workspace">
         <aside class="sidebar" aria-label="Workspace navigation">
+          <p class="rail-kicker">Workspace</p>
           <nav class="nav-list">
-            <button class="nav-link is-active" type="button" data-view="overview">Overview</button>
+            <button class="nav-link is-active" type="button" data-view="overview" aria-current="page">Overview</button>
             <button class="nav-link" type="button" data-view="transfer">New transfer</button>
             <button class="nav-link" type="button" data-view="profiles">Connections</button>
             <button class="nav-link" type="button" data-view="activity">Activity</button>
           </nav>
           <div class="sidebar-note">
-            <span class="section-number">01</span>
-            <p>Host identity, transfer integrity, and access are reviewed as one operation.</p>
+            <span class="section-number">01 / Safety</span>
+            <p>Host identity, transfer integrity, and destination access are reviewed as one operation.</p>
           </div>
-          <p class="build-note" id="build-note">Loading build identity…</p>
         </aside>
 
         <main class="content">
           <section id="overview" class="view is-visible" data-view-panel="overview" aria-labelledby="overview-title">
             <div class="hero">
-              <p class="section-number">Overview</p>
+              <div class="section-heading"><span class="section-number">01</span><h2>Overview</h2></div>
               <h1 id="overview-title">Move files with evidence, not guesswork.</h1>
               <p class="lede">Vericopy keeps transfer execution on this computer, verifies the SSH host, and reads the destination back before calling a transfer complete.</p>
-              <button class="button button-primary" type="button" data-open-transfer>Start a reviewed transfer</button>
+              <div class="hero-actions"><button class="button button-primary" type="button" data-open-transfer>Start a reviewed transfer</button><p class="operation-note">No passwords, cloud relay, or automatic host trust.</p></div>
             </div>
 
             <div class="readiness-grid" aria-live="polite">
@@ -58,15 +65,15 @@
             </div>
 
             <div class="principles">
-              <div><span class="section-number">A</span><h2>Review first</h2><p>See source, destination, port, and policy before a network connection starts.</p></div>
-              <div><span class="section-number">B</span><h2>Verify last</h2><p>Finalization waits for matching size and SHA-256 bytes from the remote file.</p></div>
-              <div><span class="section-number">C</span><h2>Keep control</h2><p>No password field, cloud relay, automatic host trust, or hidden remote shell.</p></div>
+              <div class="principle"><span class="section-number">A</span><h2>Review first</h2><p>See source, destination, port, and policy before a network connection starts.</p></div>
+              <div class="principle"><span class="section-number">B</span><h2>Verify last</h2><p>Finalization waits for matching size and SHA-256 bytes from the remote file.</p></div>
+              <div class="principle"><span class="section-number">C</span><h2>Keep control</h2><p>No password field, cloud relay, automatic host trust, or hidden remote shell.</p></div>
             </div>
           </section>
 
           <section id="transfer" class="view" data-view-panel="transfer" aria-labelledby="transfer-title">
             <div class="page-heading">
-              <p class="section-number">New transfer</p>
+              <div class="section-heading"><span class="section-number">02</span><h2>New transfer</h2></div>
               <h1 id="transfer-title">Build a transfer you can inspect.</h1>
               <p class="lede">The app requires an explicit SSH user and validates every local choice before connecting.</p>
             </div>
@@ -93,7 +100,7 @@
                     <input id="destination" name="destination" type="text" placeholder="transfer@files.example:/srv/shared/annual-report.pdf" autocomplete="off" required />
                     <div class="field-grid">
                       <div><label for="port">SSH port</label><input id="port" name="port" type="number" min="1" max="65535" value="22" /></div>
-                      <div><label for="permissions">Destination policy</label><select id="permissions" name="permissions"><option value="private">Private — SSH account only</option><option value="shared">Shared — read/write group</option><option value="service-readonly">Service readonly — owner writes, group reads</option><option value="public-readonly">Public readonly — published files</option><option value="preserve">Preserve POSIX mode</option></select></div>
+                      <div><label for="permissions">Destination policy</label><select id="permissions" name="permissions"><option value="private">Private - SSH account only</option><option value="shared">Shared - read/write group</option><option value="service-readonly">Service readonly - owner writes, group reads</option><option value="public-readonly">Public readonly - published files</option><option value="preserve">Preserve POSIX mode</option></select></div>
                     </div>
                     <div class="profile-controls">
                       <div><label for="profile-select">Saved connection <span class="optional">optional</span></label><select id="profile-select" name="profile-select"><option value="">No saved connection</option></select></div>
@@ -139,7 +146,7 @@
 
           <section id="profiles" class="view" data-view-panel="profiles" aria-labelledby="profiles-title">
             <div class="page-heading">
-              <p class="section-number">Connections</p>
+              <div class="section-heading"><span class="section-number">03</span><h2>Connections</h2></div>
               <h1 id="profiles-title">Keep connection details, not secrets.</h1>
               <p class="lede">Saved connections keep an explicit remote target, port, and known_hosts reference on this computer. They never retain a local source or SSH private-key path.</p>
             </div>
@@ -150,7 +157,7 @@
 
           <section id="activity" class="view" data-view-panel="activity" aria-labelledby="activity-title">
             <div class="page-heading">
-              <p class="section-number">Activity</p>
+              <div class="section-heading"><span class="section-number">04</span><h2>Activity</h2></div>
               <h1 id="activity-title">A small, local transfer record.</h1>
               <p class="lede">History retains outcome, timing, size, and a redacted endpoint. It omits complete local paths, private-key paths, known_hosts paths, and content hashes.</p>
             </div>

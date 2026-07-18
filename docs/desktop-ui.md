@@ -22,14 +22,32 @@ The first desktop milestone is deliberately narrow and operational:
 6. Return a concrete verified result or stable diagnostic with next steps.
 
 This is a real call into the shared transfer engine. It is not a mock transfer
-screen. The foundation intentionally does not claim features that the engine
-does not yet expose, such as per-byte UI progress or persisted history.
+screen. The desktop shell now exposes engine-backed per-file byte progress,
+redacted local history, and non-secret connection profiles. It does not claim
+aggregate folder percentages that the engine cannot truthfully calculate.
+
+## Visual system
+
+The desktop frontend uses the user-provided Basha Editorial design system as its
+visual source. It adapts the system for a working desktop application rather
+than copying a portfolio page into the product.
+
+- Warm neutral surfaces, green action states, and gold hairlines use the shared
+  token values only.
+- Charter or the platform serif renders product headings and explanatory copy;
+  the system sans renders controls; mono renders metadata, status, and paths.
+- Each view has one primary action at most. Gold remains a structural detail,
+  never a button fill.
+- The app follows the operating-system color preference by default and offers a
+  remembered light or dark choice in the window chrome.
+- Motion is restricted to short hover feedback and is disabled for people who
+  request reduced motion.
 
 ## Planned experience
 
 | Stage | Status | Scope |
 | --- | --- | --- |
-| Branded shell and reviewed transfer form | Implemented, native acceptance pending | Desktop-first workspace derived from the Basha editorial tokens |
+| Branded shell and reviewed transfer form | Implemented, native acceptance pending | Desktop-first workspace using the Basha Editorial system, including light and dark modes |
 | Local source and destination review | Implemented, native acceptance pending | Native source selection plus path and remote-spec validation |
 | Verified transfer execution | Implemented, native acceptance pending | Native SFTP, strict host identity, resume, SHA-256, and permissions |
 | Saved connection profiles | Implemented, native acceptance pending | Non-secret remote target, port, and known-hosts reference only |

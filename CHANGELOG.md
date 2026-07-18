@@ -33,5 +33,7 @@ Changelog, and releases follow Semantic Versioning.
   port, and known-hosts references on the local machine.
 - Engine-backed per-file desktop progress and redacted, user-clearable local
   transfer history.
+- A Basha Editorial desktop workspace with token-driven light and dark modes,
+  accessible navigation state, and system-consistent transfer controls.
 
 [Unreleased]: https://github.com/bashatahamal/vericopy/compare/v0.1.0...HEAD
