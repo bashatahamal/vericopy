@@ -162,6 +162,9 @@ is affected.
   Linux Go toolchain is used for development checks.
 - Wails packages must be produced on native target operating systems; generic
   Go cross-builds do not create an installable Wails application bundle.
+- WSL Linux packaging uses a separate checkout in the Linux filesystem. It
+  must not reuse the Windows checkout and `build/bin` directory, because a
+  running Windows executable is locked from WSL cleanup.
 - A Windows code-signing certificate, Apple Developer signing/notarization
   credentials, and final Linux package-format decision are not available in
   this workspace. These remain release gates, not bypassable build switches.

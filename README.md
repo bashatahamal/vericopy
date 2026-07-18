@@ -99,6 +99,12 @@ make desktop-package
 This is intentionally not treated as a cross-build: package, signing, and
 acceptance evidence must be produced on the platform that will run the app.
 
+When building a Linux desktop package under WSL, use a separate checkout in the
+Linux filesystem, such as `~/src/vericopy`. Do not build it from the mounted
+`/mnt/c/...` checkout that also produces Windows packages: a running Windows
+executable is locked and prevents WSL from cleaning the shared `build/bin`
+directory.
+
 ## CLI quick start
 
 1. Load a private key into your SSH agent.

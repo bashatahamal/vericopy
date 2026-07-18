@@ -35,6 +35,11 @@ Repeat the Windows scenarios on a native macOS session and a native Linux
 session. For Linux, record the WebKit development/runtime package and build tag
 used by the supported distribution.
 
+For WSL specifically, make a separate checkout below the Linux home directory,
+such as `~/src/vericopy-wsl`, before running a Linux Wails build. Never reuse
+the mounted Windows checkout for both targets: Windows locks a running `.exe`,
+which prevents WSL from cleaning the same `build/bin` directory.
+
 ## Accessibility and resilience
 
 - [ ] Complete the reviewed-transfer flow with a keyboard only.
