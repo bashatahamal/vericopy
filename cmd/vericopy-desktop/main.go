@@ -1,4 +1,8 @@
-//go:build desktop
+// Wails uses a temporary "bindings" build tag while reflecting the exported
+// bridge API. Production desktop builds use the "desktop" tag. Keeping both
+// tags here lets Wails generate bindings without pulling the desktop shell into
+// ordinary CLI-focused Go test runs.
+//go:build desktop || bindings
 
 package main
 

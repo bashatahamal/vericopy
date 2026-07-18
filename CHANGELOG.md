@@ -5,6 +5,11 @@ Changelog, and releases follow Semantic Versioning.
 
 ## [Unreleased]
 
+### Fixed
+
+- Wails binding generation now includes the desktop entry point without making
+  ordinary CLI-focused Go test runs compile the native desktop shell.
+
 ### Added
 
 - Native `copy`, `verify`, `doctor`, `inspect-path`, `check-access`, and `version`

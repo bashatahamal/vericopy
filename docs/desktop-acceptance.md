@@ -15,6 +15,8 @@ a `reports` folder. Never use production credentials or irreplaceable files.
 
 ## Windows acceptance
 
+- [x] Generate the Windows AMD64 production executable, including Wails binding
+  generation and embedded WebView2 support.
 - [ ] Launch the production Wails build from a normal Windows desktop session.
 - [ ] Select a file and a folder using the native dialogs.
 - [ ] Save, apply, and remove a connection profile; verify no source or key
@@ -49,3 +51,13 @@ used by the supported distribution.
 For each platform, record the package filename, SHA-256, operating-system
 version, Wails version, test date, and every failed scenario. Update
 `docs/project-status.md` only after all relevant checks have been witnessed.
+
+### Windows AMD64 build, 2026-07-18
+
+| Evidence | Value |
+| --- | --- |
+| Wails CLI | `v2.13.0` |
+| Command | `wails build -clean -webview2 embed` |
+| Artifact | `cmd/vericopy-desktop/build/bin/vericopy-desktop.exe` |
+| SHA-256 | `9446dd69840bce870f7ca52c656b7b7a10d79e854d0c6414e72f125e4989fdfe` |
+| Result | Binding generation, frontend preparation, embedded WebView2, and production compilation passed. Launch and transfer scenarios remain pending. |

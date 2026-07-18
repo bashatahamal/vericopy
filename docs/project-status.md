@@ -72,9 +72,10 @@ milestone becomes complete only when its acceptance signal is verified.
 
 ## Now
 
-1. Exercise a disposable SSH host from the desktop app using an ordinary test
-   folder, then verify the checksum result, cancellation, and resume behavior.
-2. Validate the desktop app in native Windows, macOS, and Linux sessions using
+1. Launch the generated Windows executable in a normal desktop session and
+   exercise a disposable SSH host using an ordinary test folder, then verify
+   the checksum result, cancellation, and resume behavior.
+2. Validate the desktop app in native macOS and Linux sessions using
    the [desktop acceptance checklist](desktop-acceptance.md), including light,
    dark, keyboard, and reduced-motion UI states.
 3. Build a native desktop package on each target operating system and record
@@ -138,6 +139,7 @@ Verified on 2026-07-17 with Go 1.26.5 on Linux/amd64:
 | CLI version/path/JSON/exit smoke test | Pass |
 | GoReleaser 2.15.4 configuration check | Pass with temporary local remote metadata |
 | Banner SVG render and visual inspection | Pass |
+| Windows Wails production build | Pass on 2026-07-18: bindings, checked-in frontend assets, and embedded WebView2 built `vericopy-desktop.exe`; desktop launch and transfer acceptance remain pending |
 | `git diff --check` and public-text sweep | Pass |
 | GitHub Actions pull-request checks | Pass: Ubuntu, macOS, Windows, race, OpenSSH, static/vulnerability, cross-build, and CodeQL |
 | Direct host race detector | Not available: cgo and a C compiler are absent |

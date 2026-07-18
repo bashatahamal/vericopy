@@ -4,6 +4,8 @@
 /build/
 /vericopy-desktop
 /cmd/vericopy-desktop/build/
+/cmd/vericopy-desktop/frontend/wailsjs/
+/cmd/vericopy-desktop/frontend/package.json.md5
 /coverage/
 *.coverprofile
 *.test
