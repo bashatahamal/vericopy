@@ -125,6 +125,25 @@ Paths can themselves be sensitive. Human output necessarily reports the source
 and destination involved in a requested operation; operators should protect
 logs accordingly. Resume sidecars do not store the local source path.
 
+## Desktop local state
+
+The desktop Go state store is local to the operating-system user, written
+atomically, and restricted to that user where filesystem permissions support
+it. It is separate from WebView storage.
+
+Saved sessions intentionally retain the complete transfer form for convenience,
+including the local source path and SSH identity-key path. They store path
+strings only, never private-key contents, passwords, or key passphrases. Anyone
+who can read the user's Vericopy state file can learn those paths, destination
+details, and transfer preferences, so the local user account remains a trust
+boundary. Deleting a session removes only its saved form data and never touches
+the referenced source, key, host-key file, or remote destination.
+
+Legacy connection profiles remain temporarily available for migration. Unlike
+sessions, they contain only a remote destination, port, and `known_hosts`
+reference; they never contain source or identity-key paths. Transfer history
+keeps its existing redaction contract and does not gain any session fields.
+
 ## Existing destination policy
 
 Existing destinations are rejected unless `--overwrite` is explicit.
@@ -148,4 +167,3 @@ machine-readable detail. Cancellation retains partial state when safe.
 - Anonymous or password-in-argument authentication.
 - Protection from a compromised local machine or privileged remote operator.
 - A remote backup format, history store, or bidirectional synchronization engine.
-

@@ -37,7 +37,7 @@ the CLI.
 | M3: directory and permission policies | Complete | Unit and isolated OpenSSH evidence pass |
 | M4: optional rsync adapter | Complete | Binary dialect detection and safe argument-only execution |
 | M5: CLI release pipeline | Complete | Unit, race, integration, static, vulnerability, and CLI release checks pass |
-| M6: desktop workflow | In progress | Branded native shell, non-secret profiles, truthful progress, and redacted history operate through the shared engine |
+| M6: desktop workflow | In progress | Redesigned native shell, Go-persisted sessions, truthful progress, and redacted history operate through the shared engine |
 | M7: desktop release | Planned | Native packages and acceptance evidence exist for Windows, macOS, and Linux |
 
 Status values are `Planned`, `In progress`, `Blocked`, and `Complete`. A
@@ -64,6 +64,9 @@ milestone becomes complete only when its acceptance signal is verified.
 - [x] Apply the Basha Editorial design system to the desktop workspace with
   token-driven light and dark modes, desktop-appropriate navigation, and
   restrained interaction states.
+- [x] Replace the desktop frontend with the reviewed compact dashboard design
+  and move complete saved sessions from WebView storage into the atomic Go
+  state store.
 - [x] Repair the Windows path, OpenSSH integration, and Go patch-level CI
   failures; all GitHub pull-request checks now pass.
 - [ ] Create and verify the first release tag.
@@ -72,9 +75,9 @@ milestone becomes complete only when its acceptance signal is verified.
 
 ## Now
 
-1. Launch the generated Windows executable in a normal desktop session and
-   exercise a disposable SSH host using an ordinary test folder, then verify
-   the checksum result, cancellation, and resume behavior.
+1. Exercise the generated Windows executable against a disposable SSH host
+   using an ordinary test folder, then verify the checksum result, cancellation,
+   resume behavior, and session persistence after clearing WebView data.
 2. Validate the desktop app in native macOS and Linux sessions using
    the [desktop acceptance checklist](desktop-acceptance.md), including light,
    dark, keyboard, and reduced-motion UI states.
@@ -139,7 +142,9 @@ Verified on 2026-07-17 with Go 1.26.5 on Linux/amd64:
 | CLI version/path/JSON/exit smoke test | Pass |
 | GoReleaser 2.15.4 configuration check | Pass with temporary local remote metadata |
 | Banner SVG render and visual inspection | Pass |
-| Windows Wails production build | Pass on 2026-07-18: bindings, checked-in frontend assets, and embedded WebView2 built `vericopy-desktop.exe`; desktop launch and transfer acceptance remain pending |
+| Saved-session state tests | Pass on 2026-07-18: save, reload through a fresh service, upsert, delete, path persistence, and invalid input cases |
+| `make desktop-build` | Pass on 2026-07-18 with the Windows Go toolchain |
+| Windows Wails production build | Pass on 2026-07-18: redesigned assets, regenerated session bindings, and embedded WebView2 built and launched `vericopy-desktop-sessions.exe`; full transfer acceptance remains pending |
 | `git diff --check` and public-text sweep | Pass |
 | GitHub Actions pull-request checks | Pass: Ubuntu, macOS, Windows, race, OpenSSH, static/vulnerability, cross-build, and CodeQL |
 | Direct host race detector | Not available: cgo and a C compiler are absent |
@@ -155,8 +160,8 @@ is affected.
 - Docker Desktop is not currently integrated with this WSL environment. The
   integration and race helpers default to Docker and were verified locally with
   Podman, which uses the same isolated-container model.
-- GNU Make is not installed locally. Its cross-build commands were executed
-  directly with the same variables and targets.
+- GNU Make is available in WSL and can drive the installed Windows Go toolchain
+  for Windows build targets from this shared checkout.
 - Race detection is unavailable because cgo and a C compiler are absent.
 - The installed Windows Go toolchain is available, and a verified project-local
   Linux Go toolchain is used for development checks.
@@ -180,6 +185,7 @@ is affected.
 | 2026-07-18 | Use the user-provided Basha Editorial system as the desktop visual source | Apply its tokens, typography roles, dark mode, and component restraint while adapting layouts to a transfer application. |
 | 2026-07-17 | Verify containers with Podman when Docker Desktop WSL is unavailable | The scripts retain Docker defaults and allow an equivalent local runtime. |
 | 2026-07-18 | Keep profiles and history local and redacted | Connection references are useful convenience data; source paths, key paths, full remote paths, and digests are not needed for the history view. |
+| 2026-07-18 | Persist complete saved sessions in the Go state store | Sessions intentionally retain source and identity-key paths for convenience; legacy profiles remain path-free for migration and history remains redacted. |
 | 2026-07-18 | Protect mainline and release references in GitHub | All current CI checks gate `main`; release tags can be created once but not moved or deleted. |
 
 ## Update protocol

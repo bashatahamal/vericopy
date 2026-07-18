@@ -23,7 +23,7 @@ The first desktop milestone is deliberately narrow and operational:
 
 This is a real call into the shared transfer engine. It is not a mock transfer
 screen. The desktop shell now exposes engine-backed per-file byte progress,
-redacted local history, and non-secret connection profiles. It does not claim
+redacted local history, and complete saved transfer sessions. It does not claim
 aggregate folder percentages that the engine cannot truthfully calculate.
 
 ## Visual system
@@ -50,7 +50,7 @@ than copying a portfolio page into the product.
 | Branded shell and reviewed transfer form | Implemented, native acceptance pending | Desktop-first workspace using the Basha Editorial system, including light and dark modes |
 | Local source and destination review | Implemented, native acceptance pending | Native source selection plus path and remote-spec validation |
 | Verified transfer execution | Implemented, native acceptance pending | Native SFTP, strict host identity, resume, SHA-256, and permissions |
-| Saved connection profiles | Implemented, native acceptance pending | Non-secret remote target, port, and known-hosts reference only |
+| Saved sessions | Implemented, native acceptance pending | Complete form state in the Go store, including source and identity-key paths; legacy no-path profiles migrate once |
 | Progress and cancellation detail | Implemented, native acceptance pending | Engine-backed per-file byte progress, SHA-256 state, and safe interruption controls |
 | Transfer history and exports | Implemented, native acceptance pending | Local, user-controlled redacted history; exports remain out of scope for this milestone |
 | Native packaging and signing | Planned | Per-platform Wails package builds, signing, checksums, and release evidence |
@@ -67,13 +67,18 @@ than copying a portfolio page into the product.
   out of scope.
 - The result view distinguishes completed verification from an interrupted or
   unverified transfer.
-- Saved profiles exclude source paths and identity key paths. History excludes
-  complete source paths, complete remote paths, identity paths, known-hosts
-  paths, and SHA-256 values.
+- Saved sessions intentionally include source and identity-key paths so the
+  complete form survives app restarts and cleared WebView data. They contain no
+  password, passphrase, or key contents and remain in the user-protected Go
+  state file.
+- Legacy connection profiles exclude source and identity-key paths and remain
+  only for one-time migration. History still excludes complete source paths,
+  complete remote paths, identity paths, known-hosts paths, and SHA-256 values.
 
 ## Technology boundary
 
 Wails provides the native desktop window and local webview. Go owns the
 security-sensitive work. The frontend owns presentation, form state, and
 accessible interaction only. No security rule is implemented solely in
-JavaScript.
+JavaScript. Saved sessions use the Go state bridge rather than `localStorage`;
+only the presentational theme preference uses WebView storage.

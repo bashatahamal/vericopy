@@ -304,18 +304,39 @@ func (s *Service) StartTransfer(request TransferRequest) (transfer.Result, error
 }
 
 // ListProfiles returns saved non-secret connection references.
+//
+// Deprecated: retained for one-time migration to ListSessions.
 func (s *Service) ListProfiles() ([]ConnectionProfile, error) {
 	return s.state.ListProfiles()
 }
 
 // SaveProfile creates or updates a saved non-secret connection reference.
+//
+// Deprecated: retained for one-time migration to SaveSession.
 func (s *Service) SaveProfile(profile ConnectionProfile) (ConnectionProfile, error) {
 	return s.state.SaveProfile(profile)
 }
 
 // DeleteProfile removes one saved connection reference.
+//
+// Deprecated: retained for one-time migration to DeleteSession.
 func (s *Service) DeleteProfile(id string) (bool, error) {
 	return s.state.DeleteProfile(id)
+}
+
+// ListSessions returns complete local transfer sessions from the Go state store.
+func (s *Service) ListSessions() ([]SessionProfile, error) {
+	return s.state.ListSessions()
+}
+
+// SaveSession creates or replaces one complete local transfer session.
+func (s *Service) SaveSession(session SessionProfile) (SessionProfile, error) {
+	return s.state.SaveSession(session)
+}
+
+// DeleteSession removes one local transfer session by its unique name.
+func (s *Service) DeleteSession(name string) (bool, error) {
+	return s.state.DeleteSession(name)
 }
 
 // ListTransferHistory returns redacted local transfer records.

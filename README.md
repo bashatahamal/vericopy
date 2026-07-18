@@ -26,8 +26,10 @@ less-secure implementation.
 
 The initial desktop workflow includes source inspection, destination validation,
 strict host-key prerequisites, transfer review, verified SFTP execution, and a
-clear result state. It also has non-secret saved connections, truthful
-per-file byte progress, and redacted local transfer history. Native acceptance
+clear result state. It also has local saved sessions, truthful per-file byte
+progress, and redacted local transfer history. Sessions persist complete form
+state, including source and identity-key paths, but never passwords or key
+contents. Native acceptance
 and signed packaging remain release gates; see the [desktop UI plan](docs/desktop-ui.md)
 and [desktop acceptance checklist](docs/desktop-acceptance.md).
 

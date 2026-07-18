@@ -66,16 +66,31 @@ func (b *Bridge) CancelTransfer() bool {
 	return b.service.CancelTransfer()
 }
 
+// Deprecated: retained for one-time migration to ListSessions.
 func (b *Bridge) ListProfiles() ([]desktop.ConnectionProfile, error) {
 	return b.service.ListProfiles()
 }
 
+// Deprecated: retained for one-time migration to SaveSession.
 func (b *Bridge) SaveProfile(profile desktop.ConnectionProfile) (desktop.ConnectionProfile, error) {
 	return b.service.SaveProfile(profile)
 }
 
+// Deprecated: retained for one-time migration to DeleteSession.
 func (b *Bridge) DeleteProfile(id string) (bool, error) {
 	return b.service.DeleteProfile(id)
+}
+
+func (b *Bridge) ListSessions() ([]desktop.SessionProfile, error) {
+	return b.service.ListSessions()
+}
+
+func (b *Bridge) SaveSession(session desktop.SessionProfile) (desktop.SessionProfile, error) {
+	return b.service.SaveSession(session)
+}
+
+func (b *Bridge) DeleteSession(name string) (bool, error) {
+	return b.service.DeleteSession(name)
 }
 
 func (b *Bridge) ListTransferHistory() ([]desktop.TransferHistoryEntry, error) {

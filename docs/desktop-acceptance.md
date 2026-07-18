@@ -19,8 +19,8 @@ a `reports` folder. Never use production credentials or irreplaceable files.
   generation and embedded WebView2 support.
 - [ ] Launch the production Wails build from a normal Windows desktop session.
 - [ ] Select a file and a folder using the native dialogs.
-- [ ] Save, apply, and remove a connection profile; verify no source or key
-  path is displayed after reopening the application.
+- [ ] Save, apply, and remove a session; verify its source and identity-key paths
+  restore after reopening the application and after clearing WebView data.
 - [ ] Complete a file transfer and observe uploading, verification, and
   completion states backed by real bytes.
 - [ ] Interrupt a large test transfer, then resume it and verify the final

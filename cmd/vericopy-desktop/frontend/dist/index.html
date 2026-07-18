@@ -8,165 +8,191 @@
     <link rel="stylesheet" href="./style.css" />
   </head>
   <body>
-    <div class="app-shell">
-      <header class="masthead" data-wails-drag>
-        <a class="wordmark" href="#overview" aria-label="Vericopy home">Vericopy<span>.</span></a>
-        <p class="eyebrow">Verified local transfer workspace</p>
-        <div class="masthead-tools">
-          <p class="build-note" id="build-note">Loading build identity…</p>
-          <p class="masthead-status"><span class="status-dot"></span><span>Local only</span></p>
-          <button class="theme-toggle" id="theme-toggle" type="button" aria-label="Toggle dark mode" aria-pressed="false">
-            <svg class="moon" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>
-            <svg class="sun" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 17a5 5 0 1 0 0-10 5 5 0 0 0 0 10zm0-15h0a1 1 0 0 1 1 1v2a1 1 0 1 1-2 0V3a1 1 0 0 1 1-1zm0 18a1 1 0 0 1 1 1v2a1 1 0 1 1-2 0v-2a1 1 0 0 1 1-1zM3 11h2a1 1 0 1 1 0 2H3a1 1 0 1 1 0-2zm16 0h2a1 1 0 1 1 0 2h-2a1 1 0 0 1 0-2zM5.64 4.22l1.42 1.42a1 1 0 0 1-1.42 1.42L4.22 5.64a1 1 0 1 1 1.42-1.42zm12.72 12.72 1.42 1.42a1 1 0 0 1-1.42 1.42l-1.42-1.42a1 1 0 0 1 1.42-1.42zm1.42-12.72a1 1 0 0 1 0 1.42l-1.42 1.42a1 1 0 1 1-1.42-1.42l1.42-1.42a1 1 0 0 1 1.42 0zM7.06 16.94a1 1 0 0 1 0 1.42l-1.42 1.42a1 1 0 0 1-1.42-1.42l1.42-1.42a1 1 0 0 1 1.42 0z"></path></svg>
-          </button>
-        </div>
+    <div class="app">
+      <header class="titlebar" data-wails-drag>
+        <a class="wordmark" href="#" aria-label="Vericopy">Vericopy<span>.</span></a>
+        <nav class="tabs" aria-label="Views">
+          <button class="tab is-active" type="button" data-view="dashboard" aria-current="page">Dashboard</button>
+          <button class="tab" type="button" data-view="transfer">Transfer</button>
+          <button class="tab" type="button" data-view="activity">Activity</button>
+        </nav>
+        <span class="spacer"></span>
+        <button class="theme-toggle" id="theme-toggle" type="button" aria-label="Toggle dark mode" aria-pressed="false">
+          <svg class="moon" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>
+          <svg class="sun" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 17a5 5 0 1 0 0-10 5 5 0 0 0 0 10zm0-15h0a1 1 0 0 1 1 1v2a1 1 0 1 1-2 0V3a1 1 0 0 1 1-1zm0 18a1 1 0 0 1 1 1v2a1 1 0 1 1-2 0v-2a1 1 0 0 1 1-1zM3 11h2a1 1 0 1 1 0 2H3a1 1 0 1 1 0-2zm16 0h2a1 1 0 1 1 0 2h-2a1 1 0 0 1 0-2zM5.64 4.22l1.42 1.42a1 1 0 0 1-1.42 1.42L4.22 5.64a1 1 0 1 1 1.42-1.42zm12.72 12.72 1.42 1.42a1 1 0 0 1-1.42 1.42l-1.42-1.42a1 1 0 0 1 1.42-1.42zm1.42-12.72a1 1 0 0 1 0 1.42l-1.42 1.42a1 1 0 1 1-1.42-1.42l1.42-1.42a1 1 0 0 1 1.42 0zM7.06 16.94a1 1 0 0 1 0 1.42l-1.42 1.42a1 1 0 0 1-1.42-1.42l1.42-1.42a1 1 0 0 1 1.42 0z"></path></svg>
+        </button>
       </header>
 
-      <div class="workspace">
-        <aside class="sidebar" aria-label="Workspace navigation">
-          <p class="rail-kicker">Workspace</p>
-          <nav class="nav-list">
-            <button class="nav-link is-active" type="button" data-view="overview" aria-current="page">Overview</button>
-            <button class="nav-link" type="button" data-view="transfer">New transfer</button>
-            <button class="nav-link" type="button" data-view="profiles">Connections</button>
-            <button class="nav-link" type="button" data-view="activity">Activity</button>
-          </nav>
-          <div class="sidebar-note">
-            <span class="section-number">01 / Safety</span>
-            <p>Host identity, transfer integrity, and destination access are reviewed as one operation.</p>
-          </div>
-        </aside>
+      <main class="content">
+        <div class="page">
 
-        <main class="content">
-          <section id="overview" class="view is-visible" data-view-panel="overview" aria-labelledby="overview-title">
-            <div class="hero">
-              <div class="section-heading"><span class="section-number">01</span><h2>Overview</h2></div>
-              <h1 id="overview-title">Move files with evidence, not guesswork.</h1>
-              <p class="lede">Vericopy keeps transfer execution on this computer, verifies the SSH host, and reads the destination back before calling a transfer complete.</p>
-              <div class="hero-actions"><button class="button button-primary" type="button" data-open-transfer>Start a reviewed transfer</button><p class="operation-note">No passwords, cloud relay, or automatic host trust.</p></div>
+          <section class="view is-visible" data-view-panel="dashboard" aria-label="Dashboard">
+            <div class="readiness" aria-live="polite">
+              <div class="readiness-cell">
+                <p class="micro-label">Host identity</p>
+                <p class="readiness-value"><span class="dot" id="hosts-dot"></span><strong id="hosts-state">Checking…</strong></p>
+                <p class="readiness-detail" id="hosts-detail">strict known_hosts</p>
+              </div>
+              <div class="readiness-cell">
+                <p class="micro-label">Authentication</p>
+                <p class="readiness-value"><span class="dot" id="agent-dot"></span><strong id="agent-state">Checking…</strong></p>
+                <p class="readiness-detail" id="agent-detail">SSH agent preferred</p>
+              </div>
+              <div class="readiness-cell">
+                <p class="micro-label">Engine</p>
+                <p class="readiness-value"><span class="dot is-on"></span><strong>Native SFTP</strong></p>
+                <p class="readiness-detail">resume · sha-256 readback</p>
+              </div>
             </div>
 
-            <div class="readiness-grid" aria-live="polite">
-              <article class="readiness-card">
-                <p class="card-label">Host identity</p>
-                <strong id="known-hosts-state">Checking…</strong>
-                <p id="known-hosts-detail">Strict known_hosts validation is required.</p>
-              </article>
-              <article class="readiness-card">
-                <p class="card-label">Authentication</p>
-                <strong id="agent-state">Checking…</strong>
-                <p>SSH agent is preferred; an explicit key path remains available.</p>
-              </article>
-              <article class="readiness-card">
-                <p class="card-label">Transfer engine</p>
-                <strong>Native SFTP</strong>
-                <p>Resume compatibility, SHA-256 readback, and destination policy are enforced by Go.</p>
-              </article>
+            <div class="section-head">
+              <span class="kicker">Saved sessions</span>
+              <span class="rule"></span>
+              <button class="btn btn-secondary btn-sm" type="button" data-open-transfer>New transfer</button>
             </div>
+            <div id="sessions-list"></div>
+            <p class="empty" id="sessions-empty">No saved sessions. Set up a transfer and save it.</p>
 
-            <div class="principles">
-              <div class="principle"><span class="section-number">A</span><h2>Review first</h2><p>See source, destination, port, and policy before a network connection starts.</p></div>
-              <div class="principle"><span class="section-number">B</span><h2>Verify last</h2><p>Finalization waits for matching size and SHA-256 bytes from the remote file.</p></div>
-              <div class="principle"><span class="section-number">C</span><h2>Keep control</h2><p>No password field, cloud relay, automatic host trust, or hidden remote shell.</p></div>
+            <div class="section-head">
+              <span class="kicker">Recent</span>
+              <span class="rule"></span>
+              <button class="btn btn-quiet btn-sm" type="button" data-open-activity>All activity &rarr;</button>
             </div>
+            <div id="recent-list"></div>
+            <p class="empty" id="recent-empty">Nothing recorded yet.</p>
           </section>
 
-          <section id="transfer" class="view" data-view-panel="transfer" aria-labelledby="transfer-title">
-            <div class="page-heading">
-              <div class="section-heading"><span class="section-number">02</span><h2>New transfer</h2></div>
-              <h1 id="transfer-title">Build a transfer you can inspect.</h1>
-              <p class="lede">The app requires an explicit SSH user and validates every local choice before connecting.</p>
+          <section class="view" data-view-panel="transfer" aria-label="Transfer">
+            <div class="session-bar">
+              <span class="micro-label">Session</span>
+              <span id="session-chips" class="chips"></span>
+              <span class="spacer"></span>
+              <input id="session-name" type="text" placeholder="Save as…" maxlength="80" autocomplete="off" />
+              <button class="btn btn-secondary btn-sm" type="button" id="save-session" data-tip="Saves every field of this form on this computer, including source and key paths." data-tip-pos="right">Save session</button>
             </div>
 
-            <form id="transfer-form" novalidate>
-              <div class="form-layout">
-                <div class="form-main">
-                  <fieldset>
-                    <legend>Local source</legend>
-                    <p class="field-help">Choose one regular file or a folder. Folders require recursive transfer.</p>
-                    <label for="source">Path</label>
-                    <div class="input-with-actions">
-                      <input id="source" name="source" type="text" placeholder="C:\Users\me\Documents\annual-report.pdf" autocomplete="off" required />
-                      <button class="button button-secondary" type="button" id="choose-file">Choose file</button>
-                      <button class="button button-secondary" type="button" id="choose-folder">Choose folder</button>
-                    </div>
-                    <label class="checkbox-row"><input id="recursive" name="recursive" type="checkbox" /> <span>Copy folder contents recursively</span></label>
-                  </fieldset>
-
-                  <fieldset>
-                    <legend>Remote destination</legend>
-                    <p class="field-help">Use an explicit account and an absolute remote path.</p>
-                    <label for="destination">Destination</label>
-                    <input id="destination" name="destination" type="text" placeholder="transfer@files.example:/srv/shared/annual-report.pdf" autocomplete="off" required />
-                    <div class="field-grid">
-                      <div><label for="port">SSH port</label><input id="port" name="port" type="number" min="1" max="65535" value="22" /></div>
-                      <div><label for="permissions">Destination policy</label><select id="permissions" name="permissions"><option value="private">Private - SSH account only</option><option value="shared">Shared - read/write group</option><option value="service-readonly">Service readonly - owner writes, group reads</option><option value="public-readonly">Public readonly - published files</option><option value="preserve">Preserve POSIX mode</option></select></div>
-                    </div>
-                    <div class="profile-controls">
-                      <div><label for="profile-select">Saved connection <span class="optional">optional</span></label><select id="profile-select" name="profile-select"><option value="">No saved connection</option></select></div>
-                      <div><label for="profile-name">Save as <span class="optional">no keys or source paths</span></label><input id="profile-name" name="profile-name" type="text" maxlength="80" placeholder="Reports server" autocomplete="off" /></div>
-                      <button class="button button-secondary" type="button" id="save-profile">Save connection</button>
-                    </div>
-                  </fieldset>
-
-                  <fieldset>
-                    <legend>Security and options</legend>
-                    <div class="field-grid">
-                      <div><label for="identity">Private key path <span class="optional">optional</span></label><div class="input-with-actions"><input id="identity" name="identity" type="text" placeholder="Use SSH agent when possible" autocomplete="off" /><button class="button button-secondary" type="button" id="choose-identity">Choose key</button></div></div>
-                      <div><label for="known-hosts">known_hosts path <span class="optional">optional</span></label><input id="known-hosts" name="known-hosts" type="text" placeholder="Default local known_hosts" autocomplete="off" /></div>
-                    </div>
-                    <div class="field-grid">
-                      <div><label for="group">Remote group <span class="optional">optional</span></label><input id="group" name="group" type="text" placeholder="readers" autocomplete="off" /></div>
-                      <div><label for="readable-by">Check readable by <span class="optional">optional</span></label><input id="readable-by" name="readable-by" type="text" placeholder="document-indexer" autocomplete="off" /></div>
-                    </div>
-                    <div class="checkboxes"><label class="checkbox-row"><input id="resume" name="resume" type="checkbox" checked /> <span>Resume compatible partial transfer</span></label><label class="checkbox-row"><input id="overwrite" name="overwrite" type="checkbox" /> <span>Allow replacement of an existing destination</span></label><label class="checkbox-row"><input id="preserve-time" name="preserve-time" type="checkbox" /> <span>Preserve source modification time</span></label></div>
-                  </fieldset>
+            <form id="transfer-form" class="form" novalidate>
+              <div class="field">
+                <div class="label-row">
+                  <label for="source">Source <span class="req">required</span></label>
+                  <span class="spacer"></span>
+                  <button class="link-btn" type="button" id="choose-file">Choose file</button>
+                  <button class="link-btn" type="button" id="choose-folder">Choose folder</button>
                 </div>
+                <input id="source" name="source" type="text" class="mono" placeholder="C:\Users\me\Documents\report.zip" autocomplete="off" spellcheck="false" required />
+              </div>
 
-                <aside class="review-pane" aria-live="polite">
-                  <p class="card-label">Transfer review</p>
-                  <div id="review-empty"><h2>Nothing reviewed yet</h2><p>Validate the local request before any SSH connection starts.</p></div>
-                  <div id="review-result" hidden>
-                    <h2 id="review-title">Ready to transfer</h2>
-                    <dl class="review-list" id="review-list"></dl>
-                    <p class="review-security">Strict known_hosts verification remains mandatory when the transfer starts.</p>
+              <div class="field-row">
+                <div class="field">
+                  <label for="destination">Destination <span class="req">required</span></label>
+                  <input id="destination" name="destination" type="text" class="mono" placeholder="user@host:/absolute/path" autocomplete="off" spellcheck="false" required />
+                </div>
+                <div class="field field-port">
+                  <label for="port" data-tip="SSH port for the destination host. Empty uses 22."><span class="tip-text">Port</span></label>
+                  <input id="port" name="port" type="number" class="mono" min="1" max="65535" placeholder="22" />
+                </div>
+                <div class="field field-policy">
+                  <label for="permissions" data-tip="Permissions applied at the destination. Private: owner only. Shared: group read/write. Service readonly: owner writes, group reads. Public readonly: world readable. Preserve: keep source mode." data-tip-pos="right"><span class="tip-text">Destination policy</span></label>
+                  <select id="permissions" name="permissions">
+                    <option value="private">Private</option>
+                    <option value="shared">Shared group</option>
+                    <option value="service-readonly">Service readonly</option>
+                    <option value="public-readonly">Public readonly</option>
+                    <option value="preserve">Preserve mode</option>
+                  </select>
+                </div>
+              </div>
+
+              <div class="checks">
+                <label data-tip="Copy the folder and everything inside it. Required when the source is a folder."><input id="recursive" name="recursive" type="checkbox" /><span class="tip-text">Recursive</span></label>
+                <label data-tip="Continue a compatible partial upload instead of restarting the whole file."><input id="resume" name="resume" type="checkbox" checked /><span class="tip-text">Resume partial</span></label>
+                <label data-tip="Allow replacing a file that already exists at the destination. Off protects existing files."><input id="overwrite" name="overwrite" type="checkbox" /><span class="tip-text">Overwrite existing</span></label>
+                <label data-tip="Keep the source modification time on the remote copy."><input id="preserve-time" name="preserve-time" type="checkbox" /><span class="tip-text">Preserve mtime</span></label>
+              </div>
+
+              <div>
+                <button class="disclosure" type="button" id="advanced-toggle" aria-expanded="false">Advanced &#9662;</button>
+                <div class="advanced" id="advanced" hidden>
+                  <div class="field">
+                    <div class="label-row">
+                      <label for="identity" data-tip="Path to an SSH private key. Empty uses the SSH agent, which is preferred. Encrypted keys still require the agent."><span class="tip-text">Private key</span></label>
+                      <span class="opt">optional</span>
+                      <span class="spacer"></span>
+                      <button class="link-btn" type="button" id="choose-identity">Choose</button>
+                    </div>
+                    <input id="identity" name="identity" type="text" class="mono" placeholder="SSH agent" autocomplete="off" spellcheck="false" />
                   </div>
-                  <div class="progress-panel" id="progress-panel" hidden>
-                    <p class="card-label" id="progress-phase">Preparing transfer</p>
-                    <strong id="progress-file">Waiting for confirmation</strong>
-                    <progress id="progress-meter" max="1" value="0"></progress>
-                    <p id="progress-detail">No connection has been opened.</p>
+                  <div class="field">
+                    <div class="label-row">
+                      <label for="known-hosts" data-tip="Host key file for strict verification. Empty uses ~/.ssh/known_hosts. Unknown or changed host keys stop the transfer."><span class="tip-text">known_hosts</span></label>
+                      <span class="opt">optional</span>
+                    </div>
+                    <input id="known-hosts" name="known-hosts" type="text" class="mono" placeholder="~/.ssh/known_hosts" autocomplete="off" spellcheck="false" />
                   </div>
-                  <div class="review-actions"><button class="button button-secondary" type="submit" id="review-button">Review transfer</button><button class="button button-primary" type="button" id="start-transfer" disabled>Confirm &amp; transfer</button><button class="button button-quiet" type="button" id="cancel-transfer" hidden>Cancel transfer</button></div>
-                  <div class="notice" id="notice" hidden role="status"></div>
-                </aside>
+                  <div class="field">
+                    <div class="label-row">
+                      <label for="group" data-tip="Set the destination group after transfer (chgrp on the remote host)."><span class="tip-text">Remote group</span></label>
+                      <span class="opt">optional</span>
+                    </div>
+                    <input id="group" name="group" type="text" class="mono" placeholder="readers" autocomplete="off" spellcheck="false" />
+                  </div>
+                  <div class="field">
+                    <div class="label-row">
+                      <label for="readable-by" data-tip="After verification, check that this account can traverse and read the destination." data-tip-pos="right"><span class="tip-text">Verify readable by</span></label>
+                      <span class="opt">optional</span>
+                    </div>
+                    <input id="readable-by" name="readable-by" type="text" class="mono" placeholder="service account" autocomplete="off" spellcheck="false" />
+                  </div>
+                </div>
+              </div>
+
+              <div class="actions">
+                <button class="btn btn-secondary" type="submit" id="review-button">Review</button>
+                <button class="btn btn-primary" type="button" id="start-transfer" disabled>Start transfer</button>
+                <button class="btn btn-quiet" type="button" id="cancel-transfer" hidden>Cancel</button>
+                <span class="notice" id="notice" hidden role="status"></span>
               </div>
             </form>
+
+            <div class="review" id="review-panel" hidden>
+              <div class="review-head">
+                <strong id="review-title">Ready</strong>
+                <span class="rule"></span>
+              </div>
+              <dl class="review-list" id="review-list"></dl>
+              <div class="progress" id="progress-panel" hidden>
+                <div class="progress-head">
+                  <span class="micro-label accent" id="progress-phase">Preparing</span>
+                  <span class="spacer"></span>
+                  <span class="progress-detail" id="progress-detail"></span>
+                </div>
+                <div class="bar"><div class="bar-fill" id="progress-fill"></div></div>
+                <p class="progress-file" id="progress-file"></p>
+              </div>
+              <p class="review-foot">strict known_hosts · sha-256 readback · no passwords</p>
+            </div>
           </section>
 
-          <section id="profiles" class="view" data-view-panel="profiles" aria-labelledby="profiles-title">
-            <div class="page-heading">
-              <div class="section-heading"><span class="section-number">03</span><h2>Connections</h2></div>
-              <h1 id="profiles-title">Keep connection details, not secrets.</h1>
-              <p class="lede">Saved connections keep an explicit remote target, port, and known_hosts reference on this computer. They never retain a local source or SSH private-key path.</p>
+          <section class="view" data-view-panel="activity" aria-label="Activity">
+            <div class="section-head">
+              <span class="kicker">Transfer history</span>
+              <span class="rule"></span>
+              <button class="btn btn-quiet btn-sm" type="button" id="clear-history">Clear</button>
             </div>
-            <div class="collection-heading"><p class="card-label">Saved connections</p><button class="button button-secondary" type="button" data-open-transfer>Save a connection</button></div>
-            <p class="empty-state" id="profiles-empty">No saved connections yet.</p>
-            <div class="collection-list" id="profiles-list" aria-live="polite"></div>
+            <div id="history-list" aria-live="polite"></div>
+            <p class="empty" id="history-empty">Nothing recorded yet. History stays on this computer and is redacted.</p>
           </section>
 
-          <section id="activity" class="view" data-view-panel="activity" aria-labelledby="activity-title">
-            <div class="page-heading">
-              <div class="section-heading"><span class="section-number">04</span><h2>Activity</h2></div>
-              <h1 id="activity-title">A small, local transfer record.</h1>
-              <p class="lede">History retains outcome, timing, size, and a redacted endpoint. It omits complete local paths, private-key paths, known_hosts paths, and content hashes.</p>
-            </div>
-            <div class="collection-heading"><p class="card-label">Recent transfers</p><button class="button button-quiet" type="button" id="clear-history">Clear local history</button></div>
-            <p class="empty-state" id="history-empty">No completed, failed, or interrupted transfers have been recorded on this computer.</p>
-            <div class="collection-list" id="history-list" aria-live="polite"></div>
-          </section>
-        </main>
-      </div>
+        </div>
+      </main>
+
+      <footer class="statusbar">
+        <span id="status-engine">engine ready</span>
+        <span id="status-agent">agent…</span>
+        <span class="spacer"></span>
+        <span class="local-only"><span class="dot is-on"></span>local only</span>
+        <span id="status-version">…</span>
+      </footer>
     </div>
     <script type="module" src="./app.js"></script>
   </body>

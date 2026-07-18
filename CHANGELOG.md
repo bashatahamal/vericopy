@@ -40,5 +40,7 @@ Changelog, and releases follow Semantic Versioning.
   transfer history.
 - A Basha Editorial desktop workspace with token-driven light and dark modes,
   accessible navigation state, and system-consistent transfer controls.
+- A redesigned compact desktop dashboard and Go-persisted saved sessions that
+  retain complete transfer form state independently of WebView storage.
 
 [Unreleased]: https://github.com/bashatahamal/vericopy/compare/v0.1.0...HEAD

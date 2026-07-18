@@ -63,3 +63,25 @@ func TestReviewTransferRequiresRecursiveForDirectory(t *testing.T) {
 		t.Fatalf("directory without recursive option was accepted: %v", err)
 	}
 }
+
+func TestServicePersistsSessionsOutsideWebViewState(t *testing.T) {
+	statePath := filepath.Join(t.TempDir(), "desktop-state.json")
+	service := desktop.NewServiceWithStatePath(statePath)
+	saved, err := service.SaveSession(desktop.SessionProfile{
+		Name: "Reports", Source: `C:\Users\me\Documents\report.zip`,
+		Destination: "transfer@example.com:/srv/shared/report.zip", Port: 22,
+		Permissions: "private", Identity: `C:\Users\me\.ssh\id_ed25519`, Resume: true,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	reloaded := desktop.NewServiceWithStatePath(statePath)
+	sessions, err := reloaded.ListSessions()
+	if err != nil || len(sessions) != 1 || sessions[0].Name != saved.Name || sessions[0].Identity != saved.Identity {
+		t.Fatalf("service session round-trip failed: sessions=%#v err=%v", sessions, err)
+	}
+	removed, err := reloaded.DeleteSession(saved.Name)
+	if err != nil || !removed {
+		t.Fatalf("service session delete failed: removed=%t err=%v", removed, err)
+	}
+}

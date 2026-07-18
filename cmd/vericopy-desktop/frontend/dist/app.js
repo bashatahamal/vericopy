@@ -8,134 +8,280 @@ async function invoke(method, ...args) {
   return target[method](...args);
 }
 
-const elements = {
-  nav: [...document.querySelectorAll("[data-view]")],
+const $ = (selector) => document.querySelector(selector);
+const els = {
+  tabs: [...document.querySelectorAll("[data-view]")],
   panels: [...document.querySelectorAll("[data-view-panel]")],
-  form: document.querySelector("#transfer-form"),
-  source: document.querySelector("#source"),
-  destination: document.querySelector("#destination"),
-  port: document.querySelector("#port"),
-  permissions: document.querySelector("#permissions"),
-  identity: document.querySelector("#identity"),
-  knownHosts: document.querySelector("#known-hosts"),
-  group: document.querySelector("#group"),
-  readableBy: document.querySelector("#readable-by"),
-  recursive: document.querySelector("#recursive"),
-  resume: document.querySelector("#resume"),
-  overwrite: document.querySelector("#overwrite"),
-  preserveTime: document.querySelector("#preserve-time"),
-  profileSelect: document.querySelector("#profile-select"),
-  profileName: document.querySelector("#profile-name"),
-  saveProfile: document.querySelector("#save-profile"),
-  profilesList: document.querySelector("#profiles-list"),
-  profilesEmpty: document.querySelector("#profiles-empty"),
-  historyList: document.querySelector("#history-list"),
-  historyEmpty: document.querySelector("#history-empty"),
-  clearHistory: document.querySelector("#clear-history"),
-  reviewEmpty: document.querySelector("#review-empty"),
-  reviewResult: document.querySelector("#review-result"),
-  reviewList: document.querySelector("#review-list"),
-  reviewTitle: document.querySelector("#review-title"),
-  reviewButton: document.querySelector("#review-button"),
-  startButton: document.querySelector("#start-transfer"),
-  cancelButton: document.querySelector("#cancel-transfer"),
-  progressPanel: document.querySelector("#progress-panel"),
-  progressPhase: document.querySelector("#progress-phase"),
-  progressFile: document.querySelector("#progress-file"),
-  progressMeter: document.querySelector("#progress-meter"),
-  progressDetail: document.querySelector("#progress-detail"),
-  notice: document.querySelector("#notice"),
-  themeToggle: document.querySelector("#theme-toggle"),
+  form: $("#transfer-form"),
+  source: $("#source"),
+  destination: $("#destination"),
+  port: $("#port"),
+  permissions: $("#permissions"),
+  identity: $("#identity"),
+  knownHosts: $("#known-hosts"),
+  group: $("#group"),
+  readableBy: $("#readable-by"),
+  recursive: $("#recursive"),
+  resume: $("#resume"),
+  overwrite: $("#overwrite"),
+  preserveTime: $("#preserve-time"),
+  sessionChips: $("#session-chips"),
+  sessionName: $("#session-name"),
+  saveSession: $("#save-session"),
+  sessionsList: $("#sessions-list"),
+  sessionsEmpty: $("#sessions-empty"),
+  recentList: $("#recent-list"),
+  recentEmpty: $("#recent-empty"),
+  historyList: $("#history-list"),
+  historyEmpty: $("#history-empty"),
+  clearHistory: $("#clear-history"),
+  advancedToggle: $("#advanced-toggle"),
+  advanced: $("#advanced"),
+  reviewButton: $("#review-button"),
+  startButton: $("#start-transfer"),
+  cancelButton: $("#cancel-transfer"),
+  notice: $("#notice"),
+  reviewPanel: $("#review-panel"),
+  reviewTitle: $("#review-title"),
+  reviewList: $("#review-list"),
+  progressPanel: $("#progress-panel"),
+  progressPhase: $("#progress-phase"),
+  progressDetail: $("#progress-detail"),
+  progressFill: $("#progress-fill"),
+  progressBar: document.querySelector(".bar"),
+  progressFile: $("#progress-file"),
+  themeToggle: $("#theme-toggle"),
+  statusEngine: $("#status-engine"),
+  statusAgent: $("#status-agent"),
+  statusVersion: $("#status-version"),
 };
 
+let sessions = [];
+let selectedSession = "";
 let reviewedRequest = null;
-let profiles = [];
-let selectedProfileID = "";
+let lastHistory = [];
+
+/* ---------- theme ---------- */
+
+function systemTheme() {
+  return window.matchMedia?.("(prefers-color-scheme: dark)")?.matches ? "dark" : "light";
+}
+function activeTheme() {
+  return document.documentElement.dataset.theme || systemTheme();
+}
+function updateThemeToggle() {
+  const dark = activeTheme() === "dark";
+  els.themeToggle.setAttribute("aria-pressed", String(dark));
+  els.themeToggle.setAttribute("aria-label", dark ? "Switch to light mode" : "Switch to dark mode");
+}
+function setTheme(theme, persist = true) {
+  document.documentElement.dataset.theme = theme;
+  if (persist) {
+    try { window.localStorage.setItem("vericopy.theme", theme); } catch { /* presentational only */ }
+  }
+  updateThemeToggle();
+}
+function initializeTheme() {
+  try {
+    const saved = window.localStorage.getItem("vericopy.theme");
+    if (saved === "light" || saved === "dark") { setTheme(saved, false); return; }
+  } catch { /* fall back to OS preference */ }
+  updateThemeToggle();
+}
+
+/* ---------- views ---------- */
 
 function showView(view) {
-  elements.nav.forEach((button) => {
+  els.tabs.forEach((button) => {
     const active = button.dataset.view === view;
     button.classList.toggle("is-active", active);
     if (active) button.setAttribute("aria-current", "page");
     else button.removeAttribute("aria-current");
   });
-  elements.panels.forEach((panel) => panel.classList.toggle("is-visible", panel.dataset.viewPanel === view));
-  if (view === "transfer") elements.source.focus();
-  if (view === "profiles") loadProfiles();
+  els.panels.forEach((panel) => panel.classList.toggle("is-visible", panel.dataset.viewPanel === view));
+  if (view === "dashboard") { loadDashboard(); renderSessions(); loadHistory(); }
+  if (view === "transfer") els.source.focus();
   if (view === "activity") loadHistory();
 }
 
-function systemTheme() {
-  return window.matchMedia?.("(prefers-color-scheme: dark)")?.matches ? "dark" : "light";
+/* ---------- notices ---------- */
+
+function setNotice(message, kind = "") {
+  els.notice.hidden = !message;
+  els.notice.className = `notice${kind ? ` is-${kind}` : ""}`;
+  els.notice.textContent = message || "";
 }
 
-function activeTheme() {
-  return document.documentElement.dataset.theme || systemTheme();
-}
-
-function updateThemeToggle() {
-  const dark = activeTheme() === "dark";
-  elements.themeToggle.setAttribute("aria-pressed", String(dark));
-  elements.themeToggle.setAttribute("aria-label", dark ? "Switch to light mode" : "Switch to dark mode");
-}
-
-function setTheme(theme, persist = true) {
-  document.documentElement.dataset.theme = theme;
-  if (persist) {
-    try {
-      window.localStorage.setItem("vericopy.theme", theme);
-    } catch {
-      // Theme choice is purely presentational. A locked-down WebView may deny storage.
-    }
-  }
-  updateThemeToggle();
-}
-
-function initializeTheme() {
-  try {
-    const saved = window.localStorage.getItem("vericopy.theme");
-    if (saved === "light" || saved === "dark") {
-      setTheme(saved, false);
-      return;
-    }
-  } catch {
-    // Fall back to the operating system preference when storage is unavailable.
-  }
-  updateThemeToggle();
-}
+/* ---------- form <-> data ---------- */
 
 function requestFromForm() {
   return {
-    source: elements.source.value.trim(),
-    destination: elements.destination.value.trim(),
-    port: Number(elements.port.value || 22),
-    permissions: elements.permissions.value,
-    identity: elements.identity.value.trim(),
-    known_hosts: elements.knownHosts.value.trim(),
-    group: elements.group.value.trim(),
-    readable_by: elements.readableBy.value.trim(),
-    recursive: elements.recursive.checked,
-    resume: elements.resume.checked,
-    overwrite: elements.overwrite.checked,
-    preserve_time: elements.preserveTime.checked,
+    source: els.source.value.trim(),
+    destination: els.destination.value.trim(),
+    port: Number(els.port.value || 22),
+    permissions: els.permissions.value,
+    identity: els.identity.value.trim(),
+    known_hosts: els.knownHosts.value.trim(),
+    group: els.group.value.trim(),
+    readable_by: els.readableBy.value.trim(),
+    recursive: els.recursive.checked,
+    resume: els.resume.checked,
+    overwrite: els.overwrite.checked,
+    preserve_time: els.preserveTime.checked,
   };
 }
 
-function profileFromForm() {
-  return {
-    id: selectedProfileID,
-    name: elements.profileName.value.trim(),
-    destination: elements.destination.value.trim(),
-    port: Number(elements.port.value || 22),
-    known_hosts: elements.knownHosts.value.trim(),
-  };
+function setAdvancedOpen(open) {
+  els.advanced.hidden = !open;
+  els.advancedToggle.setAttribute("aria-expanded", String(open));
+  els.advancedToggle.innerHTML = open ? "Advanced &#9652;" : "Advanced &#9662;";
 }
 
-function setNotice(message, kind = "") {
-  elements.notice.hidden = !message;
-  elements.notice.className = `notice${kind ? ` is-${kind}` : ""}`;
-  elements.notice.textContent = message || "";
+/* ---------- sessions (full form, local to this computer) ---------- */
+
+async function loadSessionsFromDisk() {
+  try {
+    sessions = await invoke("ListSessions") || [];
+  } catch {
+    sessions = [];
+  }
 }
+
+function sessionFromForm(name) {
+  return { name, updated_at: new Date().toISOString(), ...requestFromForm() };
+}
+
+function applySession(session) {
+  els.source.value = session.source || "";
+  els.destination.value = session.destination || "";
+  els.port.value = session.port || "";
+  els.permissions.value = session.permissions || "private";
+  els.identity.value = session.identity || "";
+  els.knownHosts.value = session.known_hosts || "";
+  els.group.value = session.group || "";
+  els.readableBy.value = session.readable_by || "";
+  els.recursive.checked = !!session.recursive;
+  els.resume.checked = !!session.resume;
+  els.overwrite.checked = !!session.overwrite;
+  els.preserveTime.checked = !!session.preserve_time;
+  els.sessionName.value = session.name;
+  selectedSession = session.name;
+  setAdvancedOpen(!!(session.identity || session.known_hosts || session.group || session.readable_by));
+  invalidateReview();
+  renderSessions();
+  setNotice(`Loaded "${session.name}".`, "success");
+}
+
+async function saveSession() {
+  const name = els.sessionName.value.trim();
+  if (!name) {
+    setNotice("Name the session first.", "error");
+    els.sessionName.focus();
+    return;
+  }
+  els.saveSession.disabled = true;
+  try {
+    const saved = await invoke("SaveSession", sessionFromForm(name));
+    sessions = sessions.filter((session) => session.name !== saved.name).concat([saved]);
+    selectedSession = saved.name;
+    els.sessionName.value = saved.name;
+    renderSessions();
+    setNotice("Session saved on this computer.", "success");
+  } catch (error) {
+    setNotice(error?.message || String(error), "error");
+  } finally {
+    els.saveSession.disabled = false;
+  }
+}
+
+async function deleteSession(name) {
+  try {
+    await invoke("DeleteSession", name);
+    sessions = sessions.filter((session) => session.name !== name);
+    if (selectedSession === name) selectedSession = "";
+    renderSessions();
+  } catch (error) {
+    setNotice(error?.message || String(error), "error");
+  }
+}
+
+function renderSessions() {
+  els.sessionChips.replaceChildren(...sessions.map((session) => {
+    const chip = document.createElement("button");
+    chip.type = "button";
+    chip.className = `chip${session.name === selectedSession ? " is-active" : ""}`;
+    chip.textContent = session.name;
+    chip.addEventListener("click", () => applySession(session));
+    return chip;
+  }));
+
+  els.sessionsList.replaceChildren(...sessions.map((session) => {
+    const card = document.createElement("article");
+    card.className = "session-card";
+    const body = document.createElement("div");
+    body.className = "body";
+    const name = document.createElement("div");
+    name.className = "name";
+    name.textContent = session.name;
+    const summary = document.createElement("div");
+    summary.className = "summary";
+    summary.textContent = `${session.source}  \u2192  ${session.destination} · port ${session.port || 22}`;
+    body.append(name, summary);
+    const load = document.createElement("button");
+    load.type = "button";
+    load.className = "btn btn-secondary btn-sm";
+    load.textContent = "Load";
+    load.addEventListener("click", () => { applySession(session); showView("transfer"); });
+    const remove = document.createElement("button");
+    remove.type = "button";
+    remove.className = "btn btn-quiet btn-sm";
+    remove.textContent = "Delete";
+    remove.setAttribute("aria-label", `Delete session ${session.name}`);
+    remove.addEventListener("click", () => deleteSession(session.name));
+    card.append(body, load, remove);
+    return card;
+  }));
+  els.sessionsEmpty.hidden = sessions.length > 0;
+}
+
+/* One-time migration from the old non-secret connection profiles. */
+async function migrateProfilesOnce() {
+  if (sessions.length > 0) return;
+  let migrated = false;
+  try {
+    const profiles = await invoke("ListProfiles");
+    for (const profile of profiles || []) {
+      if (sessions.some((s) => s.name === profile.name)) continue;
+      const savedSession = await invoke("SaveSession", {
+        name: profile.name,
+        updated_at: profile.updated_at,
+        source: "",
+        destination: profile.destination,
+        port: profile.port,
+        permissions: "private",
+        identity: "",
+        known_hosts: profile.known_hosts || "",
+        group: "",
+        readable_by: "",
+        recursive: false,
+        resume: true,
+        overwrite: false,
+        preserve_time: false,
+      });
+      sessions.push(savedSession);
+      migrated = true;
+    }
+  } catch { /* bridge unavailable or no profiles */ }
+  if (migrated) renderSessions();
+}
+
+async function initializeSessions() {
+  await loadSessionsFromDisk();
+  await migrateProfilesOnce();
+  renderSessions();
+}
+
+/* ---------- review + transfer ---------- */
 
 function addReviewRow(label, value) {
   const row = document.createElement("div");
@@ -144,32 +290,54 @@ function addReviewRow(label, value) {
   term.textContent = label;
   definition.textContent = value;
   row.append(term, definition);
-  elements.reviewList.append(row);
+  els.reviewList.append(row);
 }
 
 function displayReview(review) {
-  elements.reviewList.replaceChildren();
+  els.reviewList.replaceChildren();
   addReviewRow("Source", review.source.path);
-  addReviewRow("Source type", review.source.is_directory ? "Directory tree" : "Regular file");
+  addReviewRow("Type", review.source.is_directory ? "Directory tree" : "Regular file");
   addReviewRow("Destination", `${review.destination.user}@${review.destination.host}:${review.destination.path}`);
-  addReviewRow("SSH port", String(review.destination.port));
+  addReviewRow("Port", String(review.destination.port));
   addReviewRow("Policy", review.permissions);
-  addReviewRow("Host key file", review.known_hosts);
-  addReviewRow("Resume", review.resume ? "Compatible partial state allowed" : "Disabled");
-  addReviewRow("Replacement", review.overwrite ? "Explicitly allowed" : "Existing destination protected");
-  if (review.readable_by) addReviewRow("Access check", `Read as ${review.readable_by}`);
-  elements.reviewEmpty.hidden = true;
-  elements.reviewResult.hidden = false;
-  elements.reviewTitle.textContent = "Ready for confirmation";
-  elements.startButton.disabled = false;
+  addReviewRow("known_hosts", review.known_hosts);
+  const options = [
+    review.resume && "resume",
+    review.overwrite && "overwrite",
+    review.preserve_time && "preserve mtime",
+  ].filter(Boolean).join(" · ") || "none";
+  addReviewRow("Options", options);
+  if (review.readable_by) addReviewRow("Access check", `read as ${review.readable_by}`);
+  els.reviewPanel.hidden = false;
+  els.reviewTitle.textContent = "Ready · no connection opened yet";
+  els.startButton.disabled = false;
 }
 
 function invalidateReview() {
   reviewedRequest = null;
-  elements.startButton.disabled = true;
-  elements.reviewEmpty.hidden = false;
-  elements.reviewResult.hidden = true;
+  els.startButton.disabled = true;
+  els.reviewPanel.hidden = true;
+  els.progressPanel.hidden = true;
   setNotice("");
+}
+
+async function reviewTransfer() {
+  const request = requestFromForm();
+  if (!request.source) { setNotice("Source is required.", "error"); els.source.focus(); return; }
+  if (!request.destination) { setNotice("Destination is required.", "error"); els.destination.focus(); return; }
+  els.reviewButton.disabled = true;
+  setNotice("Reviewing locally. No connection opened.");
+  try {
+    const review = await invoke("ReviewTransfer", request);
+    reviewedRequest = request;
+    displayReview(review);
+    setNotice("");
+  } catch (error) {
+    invalidateReview();
+    setNotice(error?.message || String(error), "error");
+  } finally {
+    els.reviewButton.disabled = false;
+  }
 }
 
 function formatBytes(bytes) {
@@ -177,83 +345,70 @@ function formatBytes(bytes) {
   const units = ["KB", "MB", "GB", "TB"];
   let value = bytes;
   let index = -1;
-  do {
-    value /= 1024;
-    index += 1;
-  } while (value >= 1024 && index < units.length - 1);
+  do { value /= 1024; index += 1; } while (value >= 1024 && index < units.length - 1);
   return `${value.toFixed(value >= 10 ? 0 : 1)} ${units[index]}`;
 }
 
+const PHASE_LABELS = {
+  connecting: "Connecting",
+  preparing: "Preparing",
+  uploading: "Uploading",
+  verifying: "Verifying SHA-256",
+  finalizing: "Finalizing",
+  verified: "File verified",
+  completed: "Transfer verified",
+  interrupted: "Interrupted",
+  failed: "Failed",
+};
+
 function displayProgress(update) {
-  const labels = {
-    connecting: "Connecting",
-    preparing: "Preparing",
-    uploading: "Sending current file",
-    verifying: "Verifying SHA-256",
-    finalizing: "Applying policy and finalizing",
-    verified: "Current file verified",
-    completed: "Transfer verified",
-    interrupted: "Transfer interrupted",
-    failed: "Transfer failed",
-  };
-  elements.progressPanel.hidden = false;
-  elements.progressPhase.textContent = labels[update.phase] || "Transfer update";
-  elements.progressFile.textContent = update.file_name || update.message || "Working…";
+  els.progressPanel.hidden = false;
+  els.progressPhase.textContent = PHASE_LABELS[update.phase] || "Working";
+  els.progressFile.textContent = update.file_name || update.message || "";
   if (update.total_bytes > 0) {
     const transferred = Math.min(update.transferred_bytes || 0, update.total_bytes);
-    elements.progressMeter.max = update.total_bytes;
-    elements.progressMeter.value = transferred;
     const percentage = Math.round((transferred / update.total_bytes) * 100);
+    els.progressBar.classList.remove("is-indeterminate");
+    els.progressFill.style.width = `${percentage}%`;
     const resumed = update.resumed_bytes > 0 ? ` · ${formatBytes(update.resumed_bytes)} already present` : "";
-    elements.progressDetail.textContent = `${formatBytes(transferred)} of ${formatBytes(update.total_bytes)} · ${percentage}%${resumed}`;
+    els.progressDetail.textContent = `${formatBytes(transferred)} of ${formatBytes(update.total_bytes)} · ${percentage}%${resumed}`;
   } else {
-    elements.progressMeter.removeAttribute("value");
-    elements.progressDetail.textContent = update.message || "Waiting for the next transfer stage.";
-  }
-}
-
-async function reviewTransfer() {
-  const request = requestFromForm();
-  elements.reviewButton.disabled = true;
-  setNotice("Reviewing local source and destination. No connection has been opened.");
-  try {
-    const review = await invoke("ReviewTransfer", request);
-    reviewedRequest = request;
-    displayReview(review);
-    setNotice("The request is locally valid. Confirm to begin strict SSH transfer.", "success");
-  } catch (error) {
-    invalidateReview();
-    setNotice(error?.message || String(error), "error");
-  } finally {
-    elements.reviewButton.disabled = false;
+    els.progressBar.classList.add("is-indeterminate");
+    els.progressDetail.textContent = "";
   }
 }
 
 async function startTransfer() {
   if (!reviewedRequest) return;
-  elements.startButton.disabled = true;
-  elements.cancelButton.hidden = false;
-  displayProgress({ phase: "connecting", message: "Opening a strict SSH connection" });
-  setNotice("Transferring through native SFTP. Finalization waits for SHA-256 verification.");
+  els.startButton.disabled = true;
+  els.cancelButton.hidden = false;
+  els.reviewTitle.textContent = "Transferring";
+  displayProgress({ phase: "connecting" });
+  setNotice("");
   try {
     const outcome = await invoke("StartTransfer", reviewedRequest);
-    elements.reviewTitle.textContent = "Transfer verified";
-    setNotice(outcome.summary || "Transfer verified.", "success");
+    els.reviewTitle.textContent = "Transfer verified";
+    els.progressBar.classList.remove("is-indeterminate");
+    els.progressFill.style.width = "100%";
+    setNotice(outcome.summary || "Verified. Remote bytes match SHA-256.", "success");
   } catch (error) {
+    els.reviewTitle.textContent = "Transfer not verified";
     setNotice(error?.message || String(error), "error");
   } finally {
-    elements.cancelButton.hidden = true;
-    elements.startButton.disabled = !reviewedRequest;
+    els.cancelButton.hidden = true;
+    els.startButton.disabled = !reviewedRequest;
     loadHistory();
   }
 }
 
-async function choose(method, destination, recursive = false) {
+/* ---------- native pickers ---------- */
+
+async function choose(method, destination, markRecursive = false) {
   try {
     const selected = await invoke(method);
     if (selected) {
       destination.value = selected;
-      if (recursive) elements.recursive.checked = true;
+      if (markRecursive) els.recursive.checked = true;
       invalidateReview();
     }
   } catch (error) {
@@ -261,137 +416,40 @@ async function choose(method, destination, recursive = false) {
   }
 }
 
-function profileCard(profile) {
-  const card = document.createElement("article");
-  card.className = "collection-card";
-  const content = document.createElement("div");
-  const title = document.createElement("h2");
-  const destination = document.createElement("p");
-  const metadata = document.createElement("p");
-  title.textContent = profile.name;
-  destination.textContent = `${profile.destination} · port ${profile.port}`;
-  metadata.className = "meta";
-  metadata.textContent = `known_hosts: ${profile.known_hosts}`;
-  content.append(title, destination, metadata);
-  const actions = document.createElement("div");
-  actions.className = "collection-actions";
-  const apply = document.createElement("button");
-  apply.type = "button";
-  apply.className = "button button-secondary";
-  apply.textContent = "Use connection";
-  apply.addEventListener("click", () => {
-    applyProfile(profile);
-    showView("transfer");
-  });
-  const remove = document.createElement("button");
-  remove.type = "button";
-  remove.className = "button button-quiet";
-  remove.textContent = "Remove";
-  remove.addEventListener("click", () => deleteProfile(profile));
-  actions.append(apply, remove);
-  card.append(content, actions);
-  return card;
-}
+/* ---------- history ---------- */
 
-function renderProfiles() {
-  elements.profileSelect.replaceChildren();
-  const emptyOption = document.createElement("option");
-  emptyOption.value = "";
-  emptyOption.textContent = "No saved connection";
-  elements.profileSelect.append(emptyOption);
-  profiles.forEach((profile) => {
-    const option = document.createElement("option");
-    option.value = profile.id;
-    option.textContent = profile.name;
-    elements.profileSelect.append(option);
-  });
-  elements.profileSelect.value = selectedProfileID;
-  elements.profilesList.replaceChildren(...profiles.map(profileCard));
-  elements.profilesEmpty.hidden = profiles.length > 0;
-}
-
-async function loadProfiles() {
-  try {
-    profiles = await invoke("ListProfiles");
-    renderProfiles();
-  } catch (error) {
-    elements.profilesEmpty.hidden = false;
-    elements.profilesEmpty.textContent = error?.message || String(error);
-  }
-}
-
-function applyProfile(profile) {
-  selectedProfileID = profile.id;
-  elements.destination.value = profile.destination;
-  elements.port.value = profile.port;
-  elements.knownHosts.value = profile.known_hosts;
-  elements.profileName.value = profile.name;
-  renderProfiles();
-  invalidateReview();
-}
-
-async function saveProfile() {
-  if (!elements.profileName.value.trim()) {
-    setNotice("Enter a profile name before saving the connection.", "error");
-    elements.profileName.focus();
-    return;
-  }
-  elements.saveProfile.disabled = true;
-  try {
-    const saved = await invoke("SaveProfile", profileFromForm());
-    selectedProfileID = saved.id;
-    elements.profileName.value = saved.name;
-    await loadProfiles();
-    setNotice("Saved the non-secret connection reference on this computer.", "success");
-  } catch (error) {
-    setNotice(error?.message || String(error), "error");
-  } finally {
-    elements.saveProfile.disabled = false;
-  }
-}
-
-async function deleteProfile(profile) {
-  try {
-    const removed = await invoke("DeleteProfile", profile.id);
-    if (removed && selectedProfileID === profile.id) {
-      selectedProfileID = "";
-      elements.profileName.value = "";
-    }
-    await loadProfiles();
-  } catch (error) {
-    setNotice(error?.message || String(error), "error");
-  }
-}
-
-function historyCard(entry) {
-  const card = document.createElement("article");
-  card.className = "collection-card";
-  const content = document.createElement("div");
-  const title = document.createElement("h2");
-  const destination = document.createElement("p");
-  const metadata = document.createElement("p");
-  title.textContent = entry.source_name || "Transfer";
-  destination.textContent = entry.destination;
-  metadata.className = "meta";
-  const completed = entry.completed_at ? new Date(entry.completed_at).toLocaleString() : "Unknown time";
-  metadata.textContent = `${completed} · ${formatBytes(entry.bytes || 0)}${entry.resumed_bytes ? ` · resumed ${formatBytes(entry.resumed_bytes)}` : ""}${entry.diagnostic_code ? ` · ${entry.diagnostic_code}` : ""}`;
-  content.append(title, destination, metadata);
+function historyRow(entry) {
+  const row = document.createElement("article");
+  row.className = "row";
   const status = document.createElement("span");
-  status.className = `history-status${entry.status === "verified" ? "" : ` is-${entry.status}`}`;
+  status.className = `status${entry.status === "verified" ? "" : ` is-${entry.status}`}`;
   status.textContent = entry.status || "unknown";
-  card.append(content, status);
-  return card;
+  const name = document.createElement("span");
+  name.className = "name";
+  name.textContent = entry.source_name || "Transfer";
+  const dest = document.createElement("span");
+  dest.className = "dest";
+  dest.textContent = entry.destination || "";
+  const size = document.createElement("span");
+  size.className = "meta";
+  size.textContent = entry.bytes ? formatBytes(entry.bytes) : "";
+  const time = document.createElement("span");
+  time.className = "meta";
+  time.textContent = entry.completed_at ? new Date(entry.completed_at).toLocaleString() : "";
+  row.append(status, name, dest, size, time);
+  return row;
 }
 
 async function loadHistory() {
   try {
-    const history = await invoke("ListTransferHistory");
-    elements.historyList.replaceChildren(...history.map(historyCard));
-    elements.historyEmpty.hidden = history.length > 0;
-  } catch (error) {
-    elements.historyEmpty.hidden = false;
-    elements.historyEmpty.textContent = error?.message || String(error);
+    lastHistory = await invoke("ListTransferHistory") || [];
+  } catch {
+    lastHistory = [];
   }
+  els.historyList.replaceChildren(...lastHistory.map(historyRow));
+  els.historyEmpty.hidden = lastHistory.length > 0;
+  els.recentList.replaceChildren(...lastHistory.slice(0, 3).map(historyRow));
+  els.recentEmpty.hidden = lastHistory.length > 0;
 }
 
 async function clearHistory() {
@@ -404,16 +462,29 @@ async function clearHistory() {
   }
 }
 
+/* ---------- dashboard + statusbar ---------- */
+
 async function loadDashboard() {
   try {
     const dashboard = await invoke("GetDashboard");
-    document.querySelector("#build-note").textContent = `Version ${dashboard.version} · ${dashboard.platform}`;
-    document.querySelector("#known-hosts-state").textContent = dashboard.strict_host_keys_ready ? "Strict verification ready" : "Needs known_hosts attention";
-    document.querySelector("#known-hosts-detail").textContent = dashboard.strict_host_keys_ready ? dashboard.known_hosts_path : "Add and verify the server fingerprint before connecting.";
-    document.querySelector("#agent-state").textContent = dashboard.ssh_agent_available ? "SSH agent available" : "Agent not detected";
-    if (dashboard.known_hosts_path) elements.knownHosts.placeholder = dashboard.known_hosts_path;
-  } catch (error) {
-    document.querySelector("#build-note").textContent = "Desktop bridge unavailable";
+    const hostsDot = $("#hosts-dot");
+    const agentDot = $("#agent-dot");
+    $("#hosts-state").textContent = dashboard.strict_host_keys_ready ? "known_hosts found" : "Needs attention";
+    $("#hosts-detail").textContent = dashboard.strict_host_keys_ready
+      ? `${dashboard.known_hosts_path} · strict`
+      : "Add the server fingerprint before connecting.";
+    hostsDot.className = `dot ${dashboard.strict_host_keys_ready ? "is-on" : "is-warn"}`;
+    $("#agent-state").textContent = dashboard.ssh_agent_available ? "SSH agent ready" : "Agent not detected";
+    $("#agent-detail").textContent = dashboard.ssh_agent_available ? "identities from the agent" : "an explicit key path still works";
+    agentDot.className = `dot ${dashboard.ssh_agent_available ? "is-on" : "is-warn"}`;
+    els.statusEngine.textContent = dashboard.transfer_active ? "engine active" : "engine ready";
+    els.statusAgent.textContent = dashboard.ssh_agent_available ? "agent connected" : "agent not detected";
+    els.statusVersion.textContent = `${dashboard.version} · ${dashboard.platform}`;
+    if (dashboard.known_hosts_path) els.knownHosts.placeholder = dashboard.known_hosts_path;
+  } catch {
+    $("#hosts-state").textContent = "Bridge unavailable";
+    $("#agent-state").textContent = "Bridge unavailable";
+    els.statusVersion.textContent = "desktop bridge unavailable";
   }
 }
 
@@ -423,35 +494,36 @@ function subscribeToProgress() {
   }
 }
 
-elements.nav.forEach((button) => button.addEventListener("click", () => showView(button.dataset.view)));
+/* ---------- wiring ---------- */
+
+els.tabs.forEach((button) => button.addEventListener("click", () => showView(button.dataset.view)));
 document.querySelectorAll("[data-open-transfer]").forEach((button) => button.addEventListener("click", () => showView("transfer")));
-elements.form.addEventListener("submit", (event) => { event.preventDefault(); reviewTransfer(); });
-elements.startButton.addEventListener("click", startTransfer);
-elements.cancelButton.addEventListener("click", async () => {
-  const cancelled = await invoke("CancelTransfer");
-  setNotice(cancelled ? "Cancellation requested. Compatible partial state is retained for resume." : "No active transfer to cancel.");
-});
-elements.profileSelect.addEventListener("change", () => {
-  const profile = profiles.find((item) => item.id === elements.profileSelect.value);
-  if (profile) applyProfile(profile);
-  if (!profile) {
-    selectedProfileID = "";
-    elements.profileName.value = "";
+document.querySelectorAll("[data-open-activity]").forEach((button) => button.addEventListener("click", () => showView("activity")));
+els.form.addEventListener("submit", (event) => { event.preventDefault(); reviewTransfer(); });
+els.startButton.addEventListener("click", startTransfer);
+els.cancelButton.addEventListener("click", async () => {
+  try {
+    const cancelled = await invoke("CancelTransfer");
+    setNotice(cancelled ? "Cancellation requested. Partial state kept for resume." : "No active transfer to cancel.");
+  } catch (error) {
+    setNotice(error?.message || String(error), "error");
   }
 });
-elements.saveProfile.addEventListener("click", saveProfile);
-elements.clearHistory.addEventListener("click", clearHistory);
-elements.themeToggle.addEventListener("click", () => setTheme(activeTheme() === "dark" ? "light" : "dark"));
-document.querySelector("#choose-file").addEventListener("click", () => choose("SelectSourceFile", elements.source));
-document.querySelector("#choose-folder").addEventListener("click", () => choose("SelectSourceDirectory", elements.source, true));
-document.querySelector("#choose-identity").addEventListener("click", () => choose("SelectIdentityFile", elements.identity));
-[elements.source, elements.destination, elements.port, elements.permissions, elements.identity, elements.knownHosts, elements.group, elements.readableBy, elements.recursive, elements.resume, elements.overwrite, elements.preserveTime].forEach((field) => {
+els.advancedToggle.addEventListener("click", () => setAdvancedOpen(els.advanced.hidden));
+els.saveSession.addEventListener("click", saveSession);
+els.clearHistory.addEventListener("click", clearHistory);
+els.themeToggle.addEventListener("click", () => setTheme(activeTheme() === "dark" ? "light" : "dark"));
+$("#choose-file").addEventListener("click", () => choose("SelectSourceFile", els.source));
+$("#choose-folder").addEventListener("click", () => choose("SelectSourceDirectory", els.source, true));
+$("#choose-identity").addEventListener("click", () => choose("SelectIdentityFile", els.identity));
+[els.source, els.destination, els.port, els.permissions, els.identity, els.knownHosts, els.group, els.readableBy,
+ els.recursive, els.resume, els.overwrite, els.preserveTime].forEach((field) => {
   field.addEventListener("input", invalidateReview);
   field.addEventListener("change", invalidateReview);
 });
 
 initializeTheme();
 subscribeToProgress();
+initializeSessions();
 loadDashboard();
-loadProfiles();
 loadHistory();

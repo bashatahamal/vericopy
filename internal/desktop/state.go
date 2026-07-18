@@ -14,6 +14,7 @@ import (
 	"time"
 	"unicode"
 
+	"github.com/bashatahamal/vericopy/internal/permissions"
 	"github.com/bashatahamal/vericopy/internal/remote"
 	"github.com/bashatahamal/vericopy/internal/sshclient"
 	"github.com/bashatahamal/vericopy/internal/verrors"
@@ -26,6 +27,8 @@ const (
 
 // ConnectionProfile stores only non-secret connection references. Source paths
 // and identity key paths are intentionally never persisted.
+//
+// Deprecated: retained for one-time migration to SessionProfile.
 type ConnectionProfile struct {
 	ID          string    `json:"id"`
 	Name        string    `json:"name"`
@@ -33,6 +36,26 @@ type ConnectionProfile struct {
 	Port        int       `json:"port"`
 	KnownHosts  string    `json:"known_hosts"`
 	UpdatedAt   time.Time `json:"updated_at"`
+}
+
+// SessionProfile stores the complete desktop transfer form in the local,
+// user-protected state file. Source and identity are paths, not file contents;
+// passwords, key passphrases, and private-key contents are never accepted.
+type SessionProfile struct {
+	Name         string    `json:"name"`
+	Destination  string    `json:"destination"`
+	Port         int       `json:"port"`
+	Permissions  string    `json:"permissions"`
+	Identity     string    `json:"identity"`
+	KnownHosts   string    `json:"known_hosts"`
+	Group        string    `json:"group"`
+	ReadableBy   string    `json:"readable_by"`
+	Recursive    bool      `json:"recursive"`
+	Resume       bool      `json:"resume"`
+	Overwrite    bool      `json:"overwrite"`
+	PreserveTime bool      `json:"preserve_time"`
+	Source       string    `json:"source"`
+	UpdatedAt    time.Time `json:"updated_at"`
 }
 
 // TransferHistoryEntry is a redacted, local audit record. It never contains a
@@ -54,6 +77,7 @@ type TransferHistoryEntry struct {
 type persistedState struct {
 	Schema   int                    `json:"schema"`
 	Profiles []ConnectionProfile    `json:"profiles"`
+	Sessions []SessionProfile       `json:"sessions"`
 	History  []TransferHistoryEntry `json:"history"`
 }
 
@@ -78,6 +102,8 @@ func newStateStore(filename string) *StateStore {
 }
 
 // ListProfiles returns saved connection references in a stable display order.
+//
+// Deprecated: retained for one-time migration to ListSessions.
 func (s *StateStore) ListProfiles() ([]ConnectionProfile, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -93,6 +119,8 @@ func (s *StateStore) ListProfiles() ([]ConnectionProfile, error) {
 }
 
 // SaveProfile creates or replaces a non-secret connection reference.
+//
+// Deprecated: retained for one-time migration to SaveSession.
 func (s *StateStore) SaveProfile(profile ConnectionProfile) (ConnectionProfile, error) {
 	profile, err := normalizeProfile(profile)
 	if err != nil {
@@ -131,6 +159,8 @@ func (s *StateStore) SaveProfile(profile ConnectionProfile) (ConnectionProfile, 
 
 // DeleteProfile removes one saved connection reference and reports whether it
 // existed. It has no effect on any key, host-key file, or transfer state.
+//
+// Deprecated: retained for one-time migration to DeleteSession.
 func (s *StateStore) DeleteProfile(id string) (bool, error) {
 	if id == "" {
 		return false, verrors.New(verrors.CodeInvalidArguments, "the profile identifier is empty")
@@ -154,6 +184,89 @@ func (s *StateStore) DeleteProfile(id string) (bool, error) {
 		return false, nil
 	}
 	state.Profiles = profiles
+	if err := s.writeLocked(state); err != nil {
+		return false, err
+	}
+	return true, nil
+}
+
+// ListSessions returns saved full-form sessions in a stable display order.
+func (s *StateStore) ListSessions() ([]SessionProfile, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	state, err := s.readLocked()
+	if err != nil {
+		return nil, err
+	}
+	sessions := append([]SessionProfile(nil), state.Sessions...)
+	sort.Slice(sessions, func(left, right int) bool {
+		leftName := strings.ToLower(sessions[left].Name)
+		rightName := strings.ToLower(sessions[right].Name)
+		if leftName == rightName {
+			return sessions[left].Name < sessions[right].Name
+		}
+		return leftName < rightName
+	})
+	return sessions, nil
+}
+
+// SaveSession creates or replaces a complete local session by its unique name.
+func (s *StateStore) SaveSession(session SessionProfile) (SessionProfile, error) {
+	session, err := normalizeSession(session)
+	if err != nil {
+		return SessionProfile{}, err
+	}
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	state, err := s.readLocked()
+	if err != nil {
+		return SessionProfile{}, err
+	}
+	session.UpdatedAt = time.Now().UTC()
+	updated := false
+	for index, existing := range state.Sessions {
+		if existing.Name == session.Name {
+			state.Sessions[index] = session
+			updated = true
+			break
+		}
+	}
+	if !updated {
+		state.Sessions = append(state.Sessions, session)
+	}
+	if err := s.writeLocked(state); err != nil {
+		return SessionProfile{}, err
+	}
+	return session, nil
+}
+
+// DeleteSession removes a saved session by name and reports whether it existed.
+// It never removes the referenced source, identity key, or remote destination.
+func (s *StateStore) DeleteSession(name string) (bool, error) {
+	name, err := normalizeSessionName(name)
+	if err != nil {
+		return false, err
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	state, err := s.readLocked()
+	if err != nil {
+		return false, err
+	}
+	sessions := state.Sessions[:0]
+	removed := false
+	for _, session := range state.Sessions {
+		if session.Name == name {
+			removed = true
+			continue
+		}
+		sessions = append(sessions, session)
+	}
+	if !removed {
+		return false, nil
+	}
+	state.Sessions = sessions
 	if err := s.writeLocked(state); err != nil {
 		return false, err
 	}
@@ -298,6 +411,75 @@ func normalizeProfile(profile ConnectionProfile) (ConnectionProfile, error) {
 		profile.KnownHosts = sshclient.DefaultKnownHosts()
 	}
 	return profile, nil
+}
+
+func normalizeSession(session SessionProfile) (SessionProfile, error) {
+	name, err := normalizeSessionName(session.Name)
+	if err != nil {
+		return SessionProfile{}, err
+	}
+	session.Name = name
+	session.Source, err = normalizeSessionPath(session.Source, "source")
+	if err != nil {
+		return SessionProfile{}, err
+	}
+	session.Identity, err = normalizeSessionPath(session.Identity, "identity key")
+	if err != nil {
+		return SessionProfile{}, err
+	}
+	session.KnownHosts, err = normalizeSessionPath(session.KnownHosts, "known_hosts")
+	if err != nil {
+		return SessionProfile{}, err
+	}
+	session.Group = strings.TrimSpace(session.Group)
+	session.ReadableBy = strings.TrimSpace(session.ReadableBy)
+
+	session.Destination = strings.TrimSpace(session.Destination)
+	if session.Destination != "" {
+		destination, parseErr := remote.Parse(session.Destination)
+		if parseErr != nil {
+			return SessionProfile{}, parseErr
+		}
+		if destination.User == "" {
+			return SessionProfile{}, verrors.New(verrors.CodeInvalidArguments,
+				"saved sessions require an explicit SSH user").WithHint("Use user@host:/absolute/remote/path.")
+		}
+		if !strings.HasPrefix(destination.Path, "/") {
+			return SessionProfile{}, verrors.New(verrors.CodeInvalidArguments,
+				"saved sessions require an absolute remote path").WithHint("Use user@host:/absolute/remote/path.")
+		}
+		session.Destination = canonicalDestination(destination)
+	}
+
+	if session.Port == 0 {
+		session.Port = 22
+	}
+	if session.Port < 1 || session.Port > 65535 {
+		return SessionProfile{}, verrors.New(verrors.CodeInvalidArguments, "SSH port must be between 1 and 65535")
+	}
+	if session.Permissions == "" {
+		session.Permissions = "private"
+	}
+	if _, resolveErr := permissions.Resolve(session.Permissions, "", ""); resolveErr != nil {
+		return SessionProfile{}, resolveErr
+	}
+	return session, nil
+}
+
+func normalizeSessionName(name string) (string, error) {
+	name = strings.TrimSpace(name)
+	if name == "" || len(name) > 80 || strings.IndexFunc(name, unicode.IsControl) >= 0 {
+		return "", verrors.New(verrors.CodeInvalidArguments, "a session name of up to 80 printable characters is required")
+	}
+	return name, nil
+}
+
+func normalizeSessionPath(value, label string) (string, error) {
+	value = strings.TrimSpace(value)
+	if strings.IndexFunc(value, unicode.IsControl) >= 0 {
+		return "", verrors.New(verrors.CodeInvalidArguments, label+" must be a path without control characters")
+	}
+	return value, nil
 }
 
 func canonicalDestination(destination remote.Destination) string {
