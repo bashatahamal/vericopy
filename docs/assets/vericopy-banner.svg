@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1200" height="420" viewBox="0 0 1200 420" role="img" aria-labelledby="title desc">
   <title id="title">Vericopy project banner</title>
-  <desc id="desc">Vericopy wordmark and a restrained terminal transfer demonstration.</desc>
+  <desc id="desc">Vericopy wordmark and a restrained verified-transfer summary.</desc>
   <rect width="1200" height="420" fill="#faf9f7"/>
   <path d="M72 78H1128" stroke="#a16f0b" stroke-width="2"/>
   <text x="72" y="153" fill="#1d1c1a" font-family="Charter, Georgia, serif" font-size="68" font-weight="700">Vericopy<tspan fill="#0e6e55">.</tspan></text>
@@ -8,6 +8,6 @@
   <rect x="72" y="233" width="1056" height="128" rx="6" fill="#ffffff" stroke="#e6e3dc"/>
   <circle cx="99" cy="258" r="5" fill="#0e6e55"/>
   <text x="116" y="264" fill="#8a877f" font-family="ui-monospace, SFMono-Regular, Consolas, monospace" font-size="14">SFTP · STRICT HOST KEY · SHA-256</text>
-  <text x="99" y="306" fill="#1d1c1a" font-family="ui-monospace, SFMono-Regular, Consolas, monospace" font-size="18">vericopy copy "C:\Reports\quarterly-report.zip" user@server:/srv/shared/ --resume</text>
+  <text x="99" y="306" fill="#1d1c1a" font-family="ui-monospace, SFMono-Regular, Consolas, monospace" font-size="18">C:\Reports\quarterly-report.zip  →  server:/srv/shared/</text>
   <text x="99" y="336" fill="#0a5a46" font-family="ui-monospace, SFMono-Regular, Consolas, monospace" font-size="16">verified 8.4 GB · sha256 4b7c…9a20 · finalized</text>
 </svg>

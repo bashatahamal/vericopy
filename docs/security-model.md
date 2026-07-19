@@ -11,7 +11,8 @@ those guarantees depend on, and the cases it does not solve.
 - Server identity recorded in `known_hosts`.
 - Existing destination data protected from accidental replacement.
 - Local and remote paths protected from command injection and traversal.
-- Logs and JSON output protected from credential disclosure.
+- App activity, diagnostics, and supporting automation output protected from
+  credential disclosure.
 
 ## Trust boundaries
 
@@ -47,10 +48,10 @@ the fingerprint through a separate trusted channel before storing it.
 
 SSH agent and private-key authentication are supported and remain recommended.
 The desktop app also supports an explicitly selected, one-time SSH password.
-Passwords and key passphrases are never accepted as command arguments.
-Encrypted keys should be loaded into an agent with `ssh-add`. Private-key
-contents, passwords, and authentication causes are not serialized in public
-errors.
+Passwords and key passphrases are never accepted as command arguments by the
+supporting developer interface. Encrypted keys should be loaded into an agent
+with `ssh-add`. Private-key contents, passwords, and authentication causes are
+not serialized in user-visible diagnostics.
 
 The desktop password crosses the local WebView-to-Go bridge only when a transfer
 starts, is used by the native SSH handshake, and is excluded from transfer
@@ -88,8 +89,8 @@ prefix bytes before append and rejects oversized or incompatible state.
 A collision or malicious modification beyond the validated prefix can waste
 transfer time, but cannot pass finalization unless the complete remote size and
 SHA-256 match the complete local file observed at verification. Invalid state is
-replaced only when the user starts without `--resume`; ordinary connection
-interruptions retain state.
+replaced only when the user starts a transfer without resume; ordinary
+connection interruptions retain state.
 
 Source metadata is checked again before finalization. A source changing in a way
 that preserves size and modification timestamp is a local-filesystem limitation;
@@ -125,14 +126,16 @@ that every application can open the file.
 
 ## Logging and redaction
 
-There is no telemetry. JSON contains public diagnostics and non-secret transfer
-metadata. Internal causes are omitted from JSON. Redaction helpers cover common
-secret assignments and private-key blocks. Code review must treat new output
-fields as a security boundary.
+There is no telemetry. App activity contains redacted non-secret transfer
+metadata. Supporting automation JSON contains public diagnostics and non-secret
+results; internal causes are omitted. Redaction helpers cover common secret
+assignments and private-key blocks. Code review must treat every new visible or
+serialized field as a security boundary.
 
-Paths can themselves be sensitive. Human output necessarily reports the source
-and destination involved in a requested operation; operators should protect
-logs accordingly. Resume sidecars do not store the local source path.
+Paths can themselves be sensitive. The active app screen necessarily reports
+the source and destination involved in a requested operation; users should
+protect screenshots and local access accordingly. Resume sidecars do not store
+the local source path.
 
 ## Desktop local state
 
@@ -156,17 +159,17 @@ keeps its existing redaction contract and does not gain any session fields.
 
 ## Existing destination policy
 
-Existing destinations are rejected unless `--overwrite` is explicit.
-`--no-clobber` makes the default intention visible and conflicts with
-`--overwrite`. Portable SFTP cannot provide a universal race-free create-only
-rename primitive, so a privileged concurrent remote actor remains outside the
+Existing destinations are rejected unless the user explicitly enables
+overwrite. Portable SFTP cannot provide a universal race-free create-only rename
+primitive, so a privileged concurrent remote actor remains outside the
 guarantee.
 
 ## Exit behavior
 
 Input, host identity, transfer, integrity, access, and internal failures use
-separate documented exit categories. Stable diagnostic codes provide finer
-machine-readable detail. Cancellation retains partial state when safe.
+separate stable diagnostic codes. The supporting command adapter maps those
+codes to documented exit categories. Cancellation retains partial state when
+safe.
 
 ## Non-goals
 

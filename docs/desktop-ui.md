@@ -1,97 +1,97 @@
-# Desktop UI plan
+# Desktop product specification
 
-## Product decision
+## Product boundary
 
-Vericopy is desktop-first. The desktop application is the easiest way to set up
-and review a secure transfer; the CLI remains the automation, diagnostics, and
-power-user interface. Both call the same Go parsing, SSH, SFTP, transfer,
-permission, and verification code.
+Vericopy is an app-based product. The native desktop application owns the
+complete user journey: choosing a source, establishing trust, authenticating,
+reviewing the request, transferring, verifying, and understanding the result.
+Users should not need to learn or compose a command-line transfer.
 
-The app is local software, not a hosted transfer service. It can accept a
-one-time SSH password for a live connection, but never stores it in a saved
-session, history, or log. It sends no telemetry and never bypasses
-`known_hosts` validation.
+The app runs locally and calls the Go transfer engine in the same process. It is
+not a hosted service and does not send files through a Vericopy server.
 
-## Desktop foundation
+## Current experience
 
-The first desktop milestone is deliberately narrow and operational:
+1. The dashboard explains the verified-transfer promise and begins a transfer.
+2. The user selects a local file or folder with a native picker.
+3. The user enters and reviews an explicit `user@host:path` destination.
+4. The user chooses recommended key/agent authentication or a one-time password.
+5. The app checks local prerequisites and presents advanced security and access
+   settings without making them the primary workflow.
+6. A review screen shows the non-secret request before any connection opens.
+7. The app reports truthful per-file progress, verification, finalization, safe
+   cancellation, and a concrete result.
+8. Saved sessions can restore a setup. Redacted local activity records previous
+   outcomes. The Help view explains setup and security concepts in context.
 
-1. Inspect a selected local source using the runtime path rules.
-2. Parse and review an explicit `user@host:path` destination.
-3. Show strict host-key prerequisites and an explicit choice between recommended
-   SSH key/agent authentication and a one-time password.
-4. Choose a destination policy and safe transfer options.
-5. Execute native SFTP with resume, SHA-256 readback, and final access checks.
-6. Return a concrete verified result or stable diagnostic with next steps.
+## Authentication
 
-This is a real call into the shared transfer engine. It is not a mock transfer
-screen. The desktop shell now exposes engine-backed per-file byte progress,
-redacted local history, and complete saved transfer sessions. It does not claim
-aggregate folder percentages that the engine cannot truthfully calculate.
+SSH agent or private-key authentication is recommended. A selected encrypted
+key must be loaded into an agent because the app does not collect key
+passphrases.
+
+One-time password mode is an explicit alternative, never an automatic fallback.
+The password is required only for the live transfer request and is excluded from
+review output, saved sessions, activity, progress, and logs. The visible field
+is cleared when transfer begins. Password mode does not answer
+keyboard-interactive or multi-factor challenges.
+
+Every authentication mode requires strict `known_hosts` verification. Unknown
+or changed server keys stop the request.
+
+## Saved local data
+
+Saved sessions retain the form state needed to repeat a transfer, including
+source paths, destination details, identity-key paths, authentication choice,
+and transfer preferences. They never contain passwords, private-key contents,
+or key passphrases.
+
+Activity is deliberately less detailed. It excludes complete source and remote
+paths, identity paths, `known_hosts` paths, passwords, and content hashes.
+Deleting a session or activity record never deletes a source file or remote
+destination.
 
 ## Visual system
 
-The desktop frontend uses the user-provided Basha Editorial design system as its
-visual source. It adapts the system for a working desktop application rather
-than copying a portfolio page into the product.
+The desktop interface adapts the Basha Editorial design system to a working
+application rather than reproducing a portfolio layout.
 
-- Warm neutral surfaces, green action states, and gold structural details use
-  the shared token values only.
-- Bundled Source Serif 4 renders product headings, IBM Plex Sans renders the
-  interface, and IBM Plex Mono is restricted to technical facts.
-- Each view has one primary action at most. Gold remains a structural detail,
-  never a button fill.
-- The dashboard leads with the verified-transfer job and evidence; readiness
-  and saved records remain secondary. The transfer form is a numbered sequence,
-  not a flat settings grid.
-- Cards are reserved for a real grouping or trust statement. Rows and hairlines
-  handle ordinary records to avoid a generic dashboard appearance.
-- The app follows the operating-system color preference by default and offers a
-  remembered light or dark choice in the window chrome.
-- Motion is restricted to short hover feedback and is disabled for people who
-  request reduced motion.
+- Source Serif 4 carries product headings, IBM Plex Sans carries interface text,
+  and IBM Plex Mono is limited to paths and technical facts.
+- Warm neutral surfaces, green verified/action states, and restrained gold
+  structure come from the shared tokens.
+- Each view has one primary action.
+- The transfer form is a numbered sequence rather than a flat settings grid.
+- Rows and hairlines carry ordinary records; cards are reserved for meaningful
+  grouping or trust statements.
+- Light and dark modes follow the operating-system preference by default.
+- Reduced-motion preferences remove nonessential movement.
 
-## Planned experience
+## Security rules in the interface
 
-| Stage | Status | Scope |
-| --- | --- | --- |
-| Branded shell and reviewed transfer form | Implemented, native acceptance pending | Desktop-first workspace using the Basha Editorial system, including light and dark modes |
-| Local source and destination review | Implemented, native acceptance pending | Native source selection plus path and remote-spec validation |
-| Verified transfer execution | Implemented, native acceptance pending | Native SFTP, strict host identity, resume, SHA-256, and permissions |
-| Saved sessions | Implemented, native acceptance pending | Complete form state in the Go store, including source and identity-key paths; legacy no-path profiles migrate once |
-| Authentication guidance | Implemented, native acceptance pending | Explicit key/agent or one-time password selection, contextual guidance, and a dedicated Help view |
-| Progress and cancellation detail | Implemented, native acceptance pending | Engine-backed per-file byte progress, SHA-256 state, and safe interruption controls |
-| Transfer history and exports | Implemented, native acceptance pending | Local, user-controlled redacted history; exports remain out of scope for this milestone |
-| Native packaging and signing | Planned | Per-platform Wails package builds, signing, checksums, and release evidence |
-| Accessibility and acceptance runs | Planned | Keyboard, screen-reader, reduced-motion, and three-platform QA |
-
-## Security rules in the UI
-
-- A destination must include an explicit SSH user; the UI never guesses one.
-- A source is chosen locally and never converted into a shell command.
-- `known_hosts` is mandatory. Unknown or changed host keys stop the transfer.
-- SSH-agent authentication is preferred. A selected key path is supported, but
-  encrypted keys still require the agent.
-- Password authentication is an explicit alternative, never an automatic
-  fallback. The password is required only when the transfer starts and is
-  excluded from review output, saved sessions, history, progress, and logs.
-- Password mode does not answer keyboard-interactive or multi-factor prompts.
-- `StrictHostKeyChecking=no` behavior and remote-shell file paths remain out of
-  scope.
-- The result view distinguishes completed verification from an interrupted or
-  unverified transfer.
-- Saved sessions intentionally include source and identity-key paths plus the
-  selected authentication method so the reusable form survives app restarts
-  and cleared WebView data. They contain no password, passphrase, or key
-  contents and remain in the user-protected Go state file.
-- Legacy connection profiles exclude source and identity-key paths and remain
-  only for one-time migration. History still excludes complete source paths,
-  complete remote paths, identity paths, known-hosts paths, and SHA-256 values.
+- A destination includes an explicit SSH user; the app never guesses one.
+- Selected paths are passed to native filesystem and SFTP operations, not a
+  remote shell command.
+- The app offers no `StrictHostKeyChecking=no` equivalent.
+- Existing destinations remain protected unless overwrite is explicitly chosen.
+- A successful state is shown only after remote size and SHA-256 match.
+- An interrupted or failed verification is never styled as completed.
+- No security rule exists solely in frontend JavaScript.
 
 ## Technology boundary
 
-Wails provides the native desktop window and local webview. Go owns the
-security-sensitive work. The frontend owns presentation, form state, and
-accessible interaction only. No security rule is implemented solely in
-JavaScript. Saved sessions use the Go state bridge rather than `localStorage`;
-only the presentational theme preference uses WebView storage.
+Wails provides the native window and local WebView. The frontend owns layout,
+accessible interaction, and ephemeral form presentation. Go owns validation,
+state persistence, SSH authentication, host verification, SFTP operations,
+permission policy, progress events, cancellation, and verification.
+
+Only the theme preference uses WebView storage. Saved sessions and activity use
+the atomic Go state store.
+
+## Release boundary
+
+The workflow and visual system are implemented. The remaining work is native
+acceptance, packaging, signing, and release evidence on Windows, macOS, and
+Linux. Development executables must not be described as signed installers.
+See the [desktop acceptance checklist](desktop-acceptance.md) and
+[project status](project-status.md).

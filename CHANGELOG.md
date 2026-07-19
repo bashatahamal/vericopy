@@ -5,49 +5,48 @@ Changelog, and releases follow Semantic Versioning.
 
 ## [Unreleased]
 
-### Fixed
-
-- Wails binding generation now includes the desktop entry point without making
-  ordinary CLI-focused Go test runs compile the native desktop shell.
-
 ### Added
 
-- Native `copy`, `verify`, `doctor`, `inspect-path`, `check-access`, and `version`
-  commands with stable human and JSON output.
-- Strict `known_hosts` verification with SSH agent and private-key authentication.
-- Resumable SFTP partial uploads bound to source metadata and prefix bytes.
-- Size and SHA-256 verification before permission policy and final rename.
+- A native Wails desktop application for selecting, reviewing, transferring,
+  and verifying files and folders over SSH.
+- A task-first editorial interface with light and dark modes, bundled Source
+  Serif 4 and IBM Plex fonts, numbered transfer stages, and row-based records.
+- Explicit SSH key/agent and non-persistent one-time password authentication.
+- Contextual setup guidance and an in-app Help view covering authentication,
+  host identity, destinations, verification, and local data.
+- Go-persisted saved sessions, truthful per-file progress, safe cancellation,
+  and redacted local activity history.
+- Strict `known_hosts` verification with no bypass.
+- Resumable native SFTP uploads bound to source metadata and prefix bytes.
+- Remote size and SHA-256 readback before permission policy and final rename.
 - Recursive transfer with default symlink and special-file rejection.
 - Windows drive, UNC, MINGW, Cygwin, POSIX, space, and Unicode path handling.
 - `private`, `shared`, `service-readonly`, `public-readonly`, and `preserve`
   permission policies with validated overrides and optional group application.
 - Read-only service-account traversal and target-read diagnostics.
-- Optional rsync adapter with executable dialect classification and argument-only
-  process construction.
+- A supporting developer command adapter for automation, diagnostics, and
+  direct transfer-engine testing.
 - Stable diagnostic codes, exit categories, secret redaction, and signal-aware
-  cancellation.
-- Unit tests and a Docker-isolated OpenSSH integration harness.
-- Podman-compatible integration and race-test helpers for environments without
-  Docker Desktop WSL integration.
-- Cross-platform CI, CodeQL, dependency updates, release packaging, SBOMs, and
-  artifact-attestation support.
-- Branded repository banner, security model, architecture diagrams, platform
-  contract, debugging guides, release verification, and contribution policies.
-- Living product status, roadmap, acceptance evidence, and version tracker.
-- Desktop connection profiles that persist only non-secret remote destination,
-  port, and known-hosts references on the local machine.
-- Engine-backed per-file desktop progress and redacted, user-clearable local
-  transfer history.
-- A Basha Editorial desktop workspace with token-driven light and dark modes,
-  accessible navigation state, and system-consistent transfer controls.
-- A redesigned compact desktop dashboard and Go-persisted saved sessions that
-  retain complete transfer form state independently of WebView storage.
-- Explicit desktop authentication selection with recommended SSH key/agent
-  mode and non-persistent, one-time SSH password mode.
-- Contextual connection guidance and an in-app Help view covering quick start,
-  host verification, authentication choices, and credential handling.
-- A task-first desktop redesign with bundled Source Serif 4 and IBM Plex fonts,
-  a verification-led dashboard, quieter readiness state, numbered transfer
-  sequence, and row-based local records.
+  cancellation in the shared engine.
+- Unit, desktop, race, isolated OpenSSH, static, vulnerability, cross-platform,
+  and CodeQL checks.
+- Security, architecture, platform, acceptance, release, and contribution
+  documentation.
+
+### Changed
+
+- Clarified Vericopy's product direction: the desktop application is the
+  product; the command adapter is a supporting engineering interface.
+- Moved detailed command usage out of the product README and into a dedicated
+  developer reference.
+- Renamed the pre-release `media-readonly` permission policy to
+  `service-readonly`.
+
+### Fixed
+
+- Wails binding generation includes the desktop entry point without forcing
+  ordinary engine-focused Go tests to compile the native shell.
+- Windows path, OpenSSH integration, and Go patch-level CI failures discovered
+  during desktop development.
 
 [Unreleased]: https://github.com/bashatahamal/vericopy/compare/v0.1.0...HEAD
