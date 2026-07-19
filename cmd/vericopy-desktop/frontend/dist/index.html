@@ -16,8 +16,8 @@
         </div>
         <nav class="tabs" aria-label="Views">
           <button class="tab is-active" type="button" data-view="dashboard" aria-current="page">Dashboard</button>
-          <button class="tab" type="button" data-view="transfer">Transfer</button>
-          <button class="tab" type="button" data-view="activity">Activity</button>
+          <button class="tab" type="button" data-view="transfer">New transfer</button>
+          <button class="tab" type="button" data-view="activity">Transfers</button>
           <button class="tab" type="button" data-view="help">Help</button>
         </nav>
         <span class="spacer"></span>
@@ -95,13 +95,13 @@
 
               <section class="collection-panel" aria-labelledby="recent-heading">
                 <div class="collection-heading">
-                  <div><p class="micro-label">Local record</p><h2 id="recent-heading">Recent activity</h2></div>
+                  <div><p class="micro-label">Background work</p><h2 id="recent-heading">Transfer queue</h2></div>
                   <button class="link-btn" type="button" data-open-activity>View all</button>
                 </div>
-                <div id="recent-list"></div>
-                <div class="empty-state" id="recent-empty">
-                  <p>Nothing recorded yet.</p>
-                  <span>Verified, failed, and interrupted attempts appear here without sensitive paths.</span>
+                <div id="dashboard-jobs-list"></div>
+                <div class="empty-state" id="dashboard-jobs-empty">
+                  <p>No transfer jobs yet.</p>
+                  <span>Queued and active work appears here and continues while Vericopy is minimized.</span>
                 </div>
               </section>
             </div>
@@ -263,8 +263,7 @@
                   </div>
                   <div class="actions">
                     <button class="btn btn-secondary" type="submit" id="review-button">Review transfer</button>
-                    <button class="btn btn-primary" type="button" id="start-transfer" disabled>Start transfer</button>
-                    <button class="btn btn-quiet" type="button" id="cancel-transfer" hidden>Cancel</button>
+                    <button class="btn btn-primary" type="button" id="start-transfer" disabled>Add to queue</button>
                     <span class="notice" id="notice" hidden role="status"></span>
                   </div>
                 </div>
@@ -290,14 +289,31 @@
             </div>
           </section>
 
-          <section class="view" data-view-panel="activity" aria-label="Activity">
-            <div class="page-intro activity-intro">
-              <p class="kicker">Local record</p>
-              <h1>Transfer activity, without sensitive paths.</h1>
-              <p>Vericopy keeps a concise record on this computer so completed, failed, and interrupted work remains understandable.</p>
-              <button class="btn btn-quiet" type="button" id="clear-history">Clear history</button>
+          <section class="view" data-view-panel="activity" aria-label="Transfers">
+            <div class="page-intro activity-intro manager-intro">
+              <p class="kicker">Transfer manager</p>
+              <h1>Keep work moving in the background.</h1>
+              <p>Vericopy runs up to two transfers at once, queues the rest, and keeps working while the window is minimized.</p>
+              <button class="btn btn-quiet" type="button" id="clear-finished-jobs">Clear finished</button>
             </div>
-            <section class="activity-panel" aria-label="Transfer history">
+
+            <div class="queue-summary" aria-live="polite">
+              <div><strong id="queue-running">0</strong><span>Running</span></div>
+              <div><strong id="queue-waiting">0</strong><span>Queued</span></div>
+              <div><strong id="queue-capacity">2</strong><span>Parallel limit</span></div>
+              <p id="manager-notice" class="notice" hidden role="status"></p>
+            </div>
+
+            <section class="jobs-panel" aria-label="Transfer jobs">
+              <div id="jobs-list" aria-live="polite"></div>
+              <div class="empty-state empty-state-large" id="jobs-empty"><p>No transfers in the manager.</p><span>Review a transfer and add it to the queue. You can then prepare another without waiting.</span></div>
+            </section>
+
+            <section class="activity-panel" aria-labelledby="history-heading">
+              <div class="collection-heading history-heading">
+                <div><p class="micro-label">Redacted local record</p><h2 id="history-heading">Recent outcomes</h2></div>
+                <button class="link-btn" type="button" id="clear-history">Clear history</button>
+              </div>
               <div id="history-list" aria-live="polite"></div>
               <div class="empty-state empty-state-large" id="history-empty"><p>Nothing recorded yet.</p><span>History stays on this computer and redacts complete source and remote paths.</span></div>
             </section>
@@ -347,6 +363,17 @@
                 <p><code>known_hosts</code> binds the server name to its public host key. Obtain the fingerprint from the server administrator or another trusted channel, compare it independently, and only then add it to your local <code>known_hosts</code> file. Vericopy stops on unknown or changed keys and offers no bypass.</p>
               </article>
 
+              <article class="help-card help-card-wide">
+                <p class="micro-label">Transfer manager</p>
+                <h2>Queue work, then minimize Vericopy.</h2>
+                <p>Each reviewed request becomes a separate transfer job. Up to two jobs run at once and additional work waits in order. Minimized windows keep transferring. Closing Vericopy while work is active asks whether to keep it open or quit and interrupt safely.</p>
+                <ul>
+                  <li>Canceling keeps compatible partial state so a later retry can resume.</li>
+                  <li>Jobs restored after restart wait for an explicit retry.</li>
+                  <li>Password jobs require the password again because Vericopy never stores it.</li>
+                </ul>
+              </article>
+
               <article class="help-card help-card-wide safety-card">
                 <p class="micro-label">What Vericopy protects</p>
                 <h2>Your review is part of the security model.</h2>
@@ -365,6 +392,7 @@
       <footer class="statusbar">
         <span id="status-engine">engine ready</span>
         <span id="status-agent">agent…</span>
+        <button id="status-jobs" class="status-jobs" type="button" data-open-activity>0 active · 0 queued</button>
         <span class="spacer"></span>
         <span class="local-only"><span class="dot is-on"></span>local only</span>
         <span id="status-version">…</span>

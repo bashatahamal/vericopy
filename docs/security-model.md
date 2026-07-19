@@ -54,9 +54,10 @@ with `ssh-add`. Private-key contents, passwords, and authentication causes are
 not serialized in user-visible diagnostics.
 
 The desktop password crosses the local WebView-to-Go bridge only when a transfer
-starts, is used by the native SSH handshake, and is excluded from transfer
+is queued, remains only in the in-memory runtime job until its worker begins,
+is used by the native SSH handshake, and is excluded from transfer
 reviews, saved sessions, history, progress, and logs. The visible field is
-cleared when the transfer begins. Like any credential typed into an application,
+cleared when the job enters the queue. Like any credential typed into an application,
 the value exists briefly in process memory and cannot be promised absent from a
 compromised host or process dump. Password mode never relaxes strict host-key
 verification and is never attempted as an automatic fallback from key mode.
@@ -156,6 +157,28 @@ Legacy connection profiles remain temporarily available for migration. Unlike
 sessions, they contain only a remote destination, port, and `known_hosts`
 reference; they never contain source or identity-key paths. Transfer history
 keeps its existing redaction contract and does not gain any session fields.
+
+Recoverable transfer jobs persist the non-secret request needed for retry,
+including complete source, destination, identity-key, and `known_hosts` paths,
+authentication choice, and transfer preferences. The persisted request type has
+no password field. The transfer-manager view exposes only a source name and
+redacted destination even though the user-protected state file contains the
+complete non-secret request.
+
+Running and queued state recovered after process exit never reconnects
+automatically. Key/agent jobs become paused; password jobs become
+needs-password. The user must explicitly retry, and a password must be entered
+again. Closing Vericopy cancels active contexts before shutdown. Minimizing the
+window does not cross a new trust boundary because the same local process and
+user account continue to own the jobs.
+
+## Concurrency and job isolation
+
+The desktop scheduler permits two active transfers and queues additional jobs.
+Each active job has its own context, cancellation function, progress state, SSH
+connection, and SFTP client. Canceling one job does not cancel another. The
+limit reduces accidental connection and bandwidth bursts; it is not a server
+quota or a guarantee of fair bandwidth allocation.
 
 ## Existing destination policy
 

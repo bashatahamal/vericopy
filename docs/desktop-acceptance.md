@@ -30,6 +30,15 @@ a `reports` folder. Never use production credentials or irreplaceable files.
 - [ ] Confirm an unknown or changed host key stops before any transfer bytes.
 - [ ] Complete a password-authenticated transfer, then confirm the password is
   absent from the saved session file, history, visible form, and diagnostics.
+- [ ] Queue at least three transfers; confirm two run concurrently, the third
+  waits, and preparing another transfer remains available.
+- [ ] Cancel one queued job and one running job; confirm other jobs continue and
+  compatible partial state remains resumable.
+- [ ] Minimize the window while jobs are active and confirm progress continues.
+- [ ] Attempt to close the window with active work; verify **Keep running**
+  minimizes the app and **Quit and stop** interrupts safely.
+- [ ] Restart with queued key and password jobs; confirm the key job is paused,
+  the password job needs a new password, and neither reconnects automatically.
 - [ ] Save and reload a password-mode session; confirm the method returns but
   the password field is empty and requires a new entry.
 - [ ] Use the Help view and contextual Connection help action with keyboard-only
@@ -54,8 +63,8 @@ which prevents WSL from cleaning the same `build/bin` directory.
 - [ ] Inspect focus indicators, errors, progress, and cancellation with a
   screen reader where available.
 - [ ] Enable reduced motion and verify the interface remains fully usable.
-- [ ] Restart after an interrupted transfer; confirm no transfer automatically
-  resumes without a new review and confirmation.
+- [ ] Restart after interrupted or queued transfers; confirm no job
+  automatically resumes without an explicit retry.
 - [ ] Attempt invalid ports, missing users, relative remote paths, and a local
   symlink; confirm each receives a safe diagnostic.
 
@@ -74,3 +83,13 @@ version, Wails version, test date, and every failed scenario. Update
 | Artifact | `cmd/vericopy-desktop/build/bin/vericopy-desktop.exe` |
 | SHA-256 | `9446dd69840bce870f7ca52c656b7b7a10d79e854d0c6414e72f125e4989fdfe` |
 | Result | Binding generation, frontend preparation, embedded WebView2, and production compilation passed. Launch and transfer scenarios remain pending. |
+
+### Windows AMD64 transfer-manager build, 2026-07-19
+
+| Evidence | Value |
+| --- | --- |
+| Wails version | `v2.13.0` |
+| Command | `wails build -clean -o vericopy-desktop-queue.exe -webview2 embed` |
+| Artifact | `cmd/vericopy-desktop/build/bin/vericopy-desktop-queue.exe` |
+| SHA-256 | `a3b5b37fce537b62644591611ae3a7785e345d5a11c7fe6cb5d7ba61713085a3` |
+| Result | Queue bindings, frontend preparation, embedded WebView2, and production compilation passed. Native multi-transfer scenarios remain pending. |

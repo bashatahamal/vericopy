@@ -36,6 +36,9 @@ calls a Go service and shared transfer engine in the same process.
 - Explicit permission policies and optional service-account access checks.
 - Numbered transfer setup, review, progress, cancellation, and result states.
 - Go-persisted saved sessions without passwords or key contents.
+- A persistent transfer manager with two concurrent workers, queued jobs,
+  per-job progress and controls, minimized-window continuation, and restart
+  recovery without automatic reconnection.
 - Redacted local activity history.
 - Contextual guidance and an in-app Help view.
 - Editorial light and dark interface with bundled offline fonts.
@@ -64,6 +67,7 @@ must not be presented as signed end-user installers.
 | Key/agent authentication | Implemented | Unit and integration coverage pass |
 | One-time password authentication | Implemented | Method selection, required secret, and non-persistence tests pass |
 | Desktop workflow | Implemented | Source, review, progress, cancellation, history, sessions, and help are wired to Go |
+| Transfer manager | Implemented | Two-worker scheduler, persistent non-secret jobs, cancel/retry/remove controls, and password re-entry behavior are covered by tests |
 | Desktop visual system | Implemented | Light, dark, compact, review, password, activity, and help states inspected |
 | Windows production compilation | Pass | Wails build completed with embedded WebView2 |
 | Windows native transfer acceptance | Pending | Must be exercised against a disposable SSH host |
@@ -87,7 +91,7 @@ The current mainline has passed:
 
 The latest reviewed Windows desktop artifact was compiled on 2026-07-19 with
 SHA-256
-`0c4b5488868e0540fc05ccd3f53974869bb103ff0bd10b46168154b4d02a35e5`.
+`a3b5b37fce537b62644591611ae3a7785e345d5a11c7fe6cb5d7ba61713085a3`.
 That checksum identifies the reviewed development artifact; it is not a public
 release signature.
 
@@ -98,6 +102,7 @@ release signature.
 | 2026-07-19 | Treat Vericopy as an app-based product | Users should not need command-line knowledge to make a safe transfer |
 | 2026-07-19 | Keep the command interface as a supporting engineering surface | Automation and diagnostics remain useful without competing with the app experience |
 | 2026-07-19 | Offer explicit one-time password authentication | It lowers setup friction while preserving strict host verification and non-persistence |
+| 2026-07-19 | Run transfers through a bounded background queue | Two parallel jobs keep the app responsive without overwhelming a host, while every job remains independently manageable |
 | 2026-07-18 | Persist complete saved sessions in the Go state store | Reusable setups survive app and WebView restarts without storing passwords |
 | 2026-07-18 | Keep history local and redacted | Transfer records should help users without becoming a sensitive path ledger |
 | 2026-07-18 | Use the Basha Editorial system as a visual source | It gives the app a restrained identity while allowing application-specific layouts |

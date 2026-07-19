@@ -16,6 +16,12 @@ Changelog, and releases follow Semantic Versioning.
   host identity, destinations, verification, and local data.
 - Go-persisted saved sessions, truthful per-file progress, safe cancellation,
   and redacted local activity history.
+- A persistent transfer manager with a two-job concurrency limit, queued work,
+  per-job progress, cancellation, retry, removal, and restart recovery.
+- Minimized-window background progress and an active-work close warning that
+  prevents accidental transfer interruption.
+- Explicit restart handling that pauses key/agent jobs and requires password
+  re-entry for password jobs without persisting the secret.
 - Strict `known_hosts` verification with no bypass.
 - Resumable native SFTP uploads bound to source metadata and prefix bytes.
 - Remote size and SHA-256 readback before permission policy and final rename.
