@@ -2,18 +2,39 @@
 
 # Vericopy
 
-Cross-platform, resumable file transfer over SSH with strict host verification,
-SHA-256 validation, Windows path normalization, and documented destination
-permissions.
+Desktop-first, cross-platform file transfer over SSH with strict host
+verification, SHA-256 validation, Windows path normalization, and documented
+destination permissions.
 
-> Project status: `0.1.0-dev`. The native transfer path is implemented and the
-> unit suite passes. Container integration infrastructure is present, but has
-> not yet been run in the current environment. See the
+> Project status: `0.1.0-dev`. The verified transfer engine is implemented and
+> the desktop application is now the primary product surface. See the
 > [living project tracker](docs/project-status.md) for exact status and next work.
 
-Vericopy is a native command-line application. There is no web application to
-configure or trust. Human output is concise, JSON is stable for automation, and
-every failure carries a machine-readable diagnostic code.
+Vericopy is a native desktop application backed by a Go transfer engine. Its
+CLI remains available for automation and expert workflows. The desktop app does
+not require a hosted service: transfers run from the user's machine, use the
+local SSH agent or explicitly selected key, and retain strict `known_hosts`
+verification. The desktop app can also use a one-time SSH password without
+adding it to saved sessions, history, or logs.
+
+## Desktop application
+
+The in-progress desktop surface is a focused transfer workspace: choose a local
+file or folder, review a remote destination and security policy, then transfer
+and verify without composing an SSH command by hand. It is built with Wails and
+shares the exact same Go transfer engine as the CLI; it is not a separate or
+less-secure implementation.
+
+The initial desktop workflow includes source inspection, destination validation,
+strict host-key prerequisites, transfer review, verified SFTP execution, and a
+clear result state. It also has local saved sessions, truthful per-file byte
+progress, and redacted local transfer history. Sessions persist complete form
+state, including source and identity-key paths, but never passwords or key
+contents. A built-in Help view explains connection setup, authentication, host
+identity, and the verified-transfer sequence. Its task-first editorial interface
+uses bundled offline fonts for consistent rendering across platforms. Native acceptance
+and signed packaging remain release gates; see the [desktop UI plan](docs/desktop-ui.md)
+and [desktop acceptance checklist](docs/desktop-acceptance.md).
 
 ## Why Vericopy
 
@@ -26,24 +47,25 @@ every failure carries a machine-readable diagnostic code.
 - Applies explicit POSIX destination permissions instead of copying synthetic
   Windows or Cygwin mode bits.
 - Checks whether a service account can traverse and read the final destination.
-- Never accepts a password in process arguments and sends no telemetry.
+- Never accepts a password in process arguments, never persists a desktop
+  password, and sends no telemetry.
 
 ## Short demonstration
 
 ```console
-$ vericopy inspect-path 'C:\Users\me\Downloads\My Film.mkv' --target-os windows
+$ vericopy inspect-path 'C:\Users\me\Documents\quarterly-report.zip' --target-os windows
 kind: windows-drive
-normalized: C:\Users\me\Downloads\My Film.mkv
+normalized: C:\Users\me\Documents\quarterly-report.zip
 target OS: windows
 
-$ vericopy copy 'C:\Users\me\Downloads\My Film.mkv' \
-    transfer@media.example:/srv/media/My\ Film.mkv \
-    --resume --permissions media-readonly --readable-by jellyfin
-Transferred 1 file(s), 9019431321 bytes to /srv/media/My Film.mkv
+$ vericopy copy 'C:\Users\me\Documents\quarterly-report.zip' \
+    transfer@files.example:/srv/shared/quarterly-report.zip \
+    --resume --permissions shared --readable-by document-indexer
+Transferred 1 file(s), 42890211 bytes to /srv/shared/quarterly-report.zip
 SHA-256: 4b7c...9a20
 ```
 
-## Install from source
+## Install the CLI from source
 
 Requirements: Go 1.25 or later. The project is developed against the current
 stable Go toolchain.
@@ -54,11 +76,42 @@ cd vericopy
 go build -trimpath -o ./bin/vericopy ./cmd/vericopy
 ```
 
-Release archives will be available for Windows, macOS, and Linux on amd64 and
-arm64 after the first tagged release. Verify downloads before installing them;
-see [release verification](docs/release-verification.md).
+CLI archives will be available for Windows, macOS, and Linux on amd64 and arm64
+after the first tagged release. Native desktop packages require separate
+per-platform acceptance and signing before publication; see
+[release verification](docs/release-verification.md).
 
-## Quick start
+### Build the desktop development binary
+
+The desktop shell uses checked-in, embedded frontend assets. On a supported
+desktop platform, build it with:
+
+```sh
+make desktop-build
+./bin/vericopy-desktop
+```
+
+The UI requires a native desktop session. It does not start a web server or
+send files through a hosted intermediary.
+
+To produce a native Wails package on its target operating system, install the
+matching Wails CLI and run `make desktop-package`:
+
+```sh
+go install github.com/wailsapp/wails/v2/cmd/wails@v2.13.0
+make desktop-package
+```
+
+This is intentionally not treated as a cross-build: package, signing, and
+acceptance evidence must be produced on the platform that will run the app.
+
+When building a Linux desktop package under WSL, use a separate checkout in the
+Linux filesystem, such as `~/src/vericopy`. Do not build it from the mounted
+`/mnt/c/...` checkout that also produces Windows packages: a running Windows
+executable is locked and prevents WSL from cleaning the shared `build/bin`
+directory.
+
+## CLI quick start
 
 1. Load a private key into your SSH agent.
 2. Add the server host key to `~/.ssh/known_hosts` only after verifying its
@@ -69,13 +122,13 @@ see [release verification](docs/release-verification.md).
 ```sh
 ssh-add ~/.ssh/id_ed25519
 vericopy doctor
-vericopy inspect-path '/home/me/large-file.mkv'
-vericopy copy '/home/me/large-file.mkv' \
-  'transfer@server.example:/srv/media/large-file.mkv' \
+vericopy inspect-path '/home/me/Documents/annual-report.pdf'
+vericopy copy '/home/me/Documents/annual-report.pdf' \
+  'transfer@server.example:/srv/shared/annual-report.pdf' \
   --resume --dry-run
-vericopy copy '/home/me/large-file.mkv' \
-  'transfer@server.example:/srv/media/large-file.mkv' \
-  --resume --permissions media-readonly
+vericopy copy '/home/me/Documents/annual-report.pdf' \
+  'transfer@server.example:/srv/shared/annual-report.pdf' \
+  --resume --permissions shared
 ```
 
 Vericopy never trusts a host automatically. `ssh-keyscan` retrieves a key but
@@ -129,7 +182,7 @@ vericopy verify ./archive.tar.zst user@host:/srv/archive.tar.zst
 ### Check service-account access
 
 ```sh
-vericopy check-access user@host:/srv/media/Film.mkv --as-user jellyfin
+vericopy check-access user@host:/srv/shared/annual-report.pdf --as-user document-indexer
 ```
 
 The check reads numeric user/group information and SFTP metadata. It does not
@@ -141,18 +194,18 @@ PowerShell:
 
 ```powershell
 vericopy.exe copy `
-  'C:\Users\me\Downloads\My Film.mkv' `
-  'transfer@server:/srv/media/My Film.mkv' `
-  --resume --permissions media-readonly
+  'C:\Users\me\Documents\quarterly-report.zip' `
+  'transfer@server:/srv/shared/quarterly-report.zip' `
+  --resume --permissions shared
 ```
 
 Git Bash:
 
 ```sh
 vericopy.exe copy \
-  '/c/Users/me/Downloads/My Film.mkv' \
-  'transfer@server:/srv/media/My Film.mkv' \
-  --resume --permissions media-readonly
+  '/c/Users/me/Documents/quarterly-report.zip' \
+  'transfer@server:/srv/shared/quarterly-report.zip' \
+  --resume --permissions shared
 ```
 
 The native SFTP backend normalizes the local path internally. The optional
@@ -166,7 +219,7 @@ not the launching shell. See the
 | --- | ---: | ---: | --- |
 | `private` | `0700` | `0600` | SSH account only |
 | `shared` | `2770` | `0660` | Read/write group collaboration |
-| `media-readonly` | `2750` | `0640` | Owner writes, media group reads |
+| `service-readonly` | `2750` | `0640` | Owner writes, a designated read-only group reads |
 | `public-readonly` | `0755` | `0644` | World-readable published content |
 | `preserve` | source mode | source mode | Explicit POSIX-to-POSIX preservation |
 
@@ -177,13 +230,13 @@ escalation. Windows ACL replication is outside the initial scope.
 ## JSON and exit codes
 
 ```sh
-vericopy inspect-path '/cygdrive/c/Media/Film.mkv' --target-os windows --json
+vericopy inspect-path '/cygdrive/c/Users/me/Documents/annual-report.pdf' --target-os windows --json
 ```
 
 Success:
 
 ```json
-{"ok":true,"result":{"original":"/cygdrive/c/Media/Film.mkv","kind":"cygwin","normalized":"C:\\Media\\Film.mkv","target_os":"windows","absolute":true}}
+{"ok":true,"result":{"original":"/cygdrive/c/Users/me/Documents/annual-report.pdf","kind":"cygwin","normalized":"C:\\Users\\me\\Documents\\annual-report.pdf","target_os":"windows","absolute":true}}
 ```
 
 Failure:
@@ -218,8 +271,9 @@ Read the full [platform compatibility contract](docs/platform-behavior.md).
 
 - [Security model](docs/security-model.md)
 - [Architecture and transfer sequence](docs/architecture.md)
-- [Linux media permission guide](docs/guides/linux-media-permissions.md)
+- [Linux service permission guide](docs/guides/linux-service-permissions.md)
 - [Brand and accessibility decisions](docs/brand.md)
+- [Desktop acceptance checklist](docs/desktop-acceptance.md)
 
 SHA-256 proves that the destination bytes match the source bytes Vericopy
 observed. It does not prove that the source is trustworthy, safe, or malware-free.
@@ -233,7 +287,7 @@ go vet ./...
 go run honnef.co/go/tools/cmd/staticcheck@v0.7.0 ./...
 go run golang.org/x/vuln/cmd/govulncheck@v1.6.0 ./...
 make cross-build
-./integration/run.sh   # requires Docker and OpenSSH client tools
+sh ./integration/run.sh   # requires Docker and OpenSSH client tools
 CONTAINER_RUNTIME=podman VERICOPY_GO_BIN=/path/to/go ./integration/run.sh
 CONTAINER_RUNTIME=podman ./scripts/race-container.sh
 ```

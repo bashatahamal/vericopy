@@ -2,7 +2,7 @@ package localpath
 
 import (
 	"fmt"
-	"path/filepath"
+	"path"
 	"regexp"
 	"runtime"
 	"strings"
@@ -109,7 +109,10 @@ func normalize(value string, kind Kind, targetOS string) (string, error) {
 	case KindWindowsDrive, KindUNC, KindMINGW, KindCygwin:
 		return value, nil
 	default:
-		return filepath.Clean(value), nil
+		// Inspect can validate a path dialect other than the operating system
+		// running this binary. Use slash-based cleaning for POSIX paths so a
+		// Windows runner does not rewrite /home/... as \\home\\....
+		return path.Clean(value), nil
 	}
 }
 

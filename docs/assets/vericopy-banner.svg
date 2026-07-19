@@ -8,7 +8,6 @@
   <rect x="72" y="233" width="1056" height="128" rx="6" fill="#ffffff" stroke="#e6e3dc"/>
   <circle cx="99" cy="258" r="5" fill="#0e6e55"/>
   <text x="116" y="264" fill="#8a877f" font-family="ui-monospace, SFMono-Regular, Consolas, monospace" font-size="14">SFTP · STRICT HOST KEY · SHA-256</text>
-  <text x="99" y="306" fill="#1d1c1a" font-family="ui-monospace, SFMono-Regular, Consolas, monospace" font-size="18">vericopy copy "C:\Media\Film.mkv" user@server:/srv/media/ --resume</text>
+  <text x="99" y="306" fill="#1d1c1a" font-family="ui-monospace, SFMono-Regular, Consolas, monospace" font-size="18">vericopy copy "C:\Reports\quarterly-report.zip" user@server:/srv/shared/ --resume</text>
   <text x="99" y="336" fill="#0a5a46" font-family="ui-monospace, SFMono-Regular, Consolas, monospace" font-size="16">verified 8.4 GB · sha256 4b7c…9a20 · finalized</text>
 </svg>
-

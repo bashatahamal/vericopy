@@ -1,0 +1,375 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="color-scheme" content="light dark" />
+    <title>Vericopy</title>
+    <link rel="stylesheet" href="./style.css" />
+  </head>
+  <body>
+    <div class="app">
+      <header class="titlebar" data-wails-drag>
+        <div class="brand-lockup">
+          <a class="wordmark" href="#" aria-label="Vericopy">Vericopy<span>.</span></a>
+          <span class="brand-caption">Verified file transfer</span>
+        </div>
+        <nav class="tabs" aria-label="Views">
+          <button class="tab is-active" type="button" data-view="dashboard" aria-current="page">Dashboard</button>
+          <button class="tab" type="button" data-view="transfer">Transfer</button>
+          <button class="tab" type="button" data-view="activity">Activity</button>
+          <button class="tab" type="button" data-view="help">Help</button>
+        </nav>
+        <span class="spacer"></span>
+        <button class="theme-toggle" id="theme-toggle" type="button" aria-label="Toggle dark mode" aria-pressed="false">
+          <svg class="moon" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>
+          <svg class="sun" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 17a5 5 0 1 0 0-10 5 5 0 0 0 0 10zm0-15h0a1 1 0 0 1 1 1v2a1 1 0 1 1-2 0V3a1 1 0 0 1 1-1zm0 18a1 1 0 0 1 1 1v2a1 1 0 1 1-2 0v-2a1 1 0 0 1 1-1zM3 11h2a1 1 0 1 1 0 2H3a1 1 0 1 1 0-2zm16 0h2a1 1 0 1 1 0 2h-2a1 1 0 0 1 0-2zM5.64 4.22l1.42 1.42a1 1 0 0 1-1.42 1.42L4.22 5.64a1 1 0 1 1 1.42-1.42zm12.72 12.72 1.42 1.42a1 1 0 0 1-1.42 1.42l-1.42-1.42a1 1 0 0 1 1.42-1.42zm1.42-12.72a1 1 0 0 1 0 1.42l-1.42 1.42a1 1 0 1 1-1.42-1.42l1.42-1.42a1 1 0 0 1 1.42 0zM7.06 16.94a1 1 0 0 1 0 1.42l-1.42 1.42a1 1 0 0 1-1.42-1.42l1.42-1.42a1 1 0 0 1 1.42 0z"></path></svg>
+        </button>
+      </header>
+
+      <main class="content">
+        <div class="page">
+
+          <section class="view is-visible" data-view-panel="dashboard" aria-label="Dashboard">
+            <div class="dashboard-hero">
+              <div class="dashboard-copy">
+                <p class="kicker">Local, verified transfer</p>
+                <h1>Move files.<br />Know they arrived intact.</h1>
+                <p>Vericopy sends through SSH, reads the remote bytes back, and verifies the result before calling the transfer complete.</p>
+                <div class="hero-actions">
+                  <button class="btn btn-primary btn-large" type="button" data-open-transfer>Set up a transfer</button>
+                  <button class="btn btn-text" type="button" data-open-help>How verification works</button>
+                </div>
+              </div>
+              <aside class="trust-note" aria-label="Transfer guarantees">
+                <p class="micro-label">Every completed transfer</p>
+                <p class="trust-statement">Remote bytes match the source bytes Vericopy observed.</p>
+                <dl>
+                  <div><dt>Transport</dt><dd>Native SFTP</dd></div>
+                  <div><dt>Identity</dt><dd>Strict host key</dd></div>
+                  <div><dt>Evidence</dt><dd>Size + SHA-256</dd></div>
+                </dl>
+                <p class="trust-foot">No hosted service. No telemetry.</p>
+              </aside>
+            </div>
+
+            <section class="readiness-section" aria-labelledby="readiness-heading">
+              <div class="collection-heading">
+                <div>
+                  <p class="micro-label">Before connecting</p>
+                  <h2 id="readiness-heading">Connection readiness</h2>
+                </div>
+                <button class="link-btn" type="button" data-open-help>Setup help</button>
+              </div>
+              <div class="readiness" aria-live="polite">
+                <div class="readiness-cell">
+                  <p class="readiness-value"><span class="dot" id="hosts-dot"></span><strong id="hosts-state">Checking…</strong></p>
+                  <p class="readiness-label">Host identity</p>
+                  <p class="readiness-detail" id="hosts-detail">strict known_hosts</p>
+                </div>
+                <div class="readiness-cell">
+                  <p class="readiness-value"><span class="dot" id="agent-dot"></span><strong id="agent-state">Checking…</strong></p>
+                  <p class="readiness-label">Key authentication</p>
+                  <p class="readiness-detail" id="agent-detail">SSH agent preferred</p>
+                </div>
+                <div class="readiness-cell">
+                  <p class="readiness-value"><span class="dot is-on"></span><strong>Ready</strong></p>
+                  <p class="readiness-label">Transfer engine</p>
+                  <p class="readiness-detail">resume · sha-256 readback</p>
+                </div>
+              </div>
+            </section>
+
+            <div class="dashboard-collections">
+              <section class="collection-panel" aria-labelledby="sessions-heading">
+                <div class="collection-heading">
+                  <div><p class="micro-label">Reusable setup</p><h2 id="sessions-heading">Saved sessions</h2></div>
+                  <button class="link-btn" type="button" data-open-transfer>New transfer</button>
+                </div>
+                <div id="sessions-list"></div>
+                <div class="empty-state" id="sessions-empty">
+                  <p>No saved sessions yet.</p>
+                  <span>Save a reviewed setup to reuse its paths, policy, and authentication choice.</span>
+                </div>
+              </section>
+
+              <section class="collection-panel" aria-labelledby="recent-heading">
+                <div class="collection-heading">
+                  <div><p class="micro-label">Local record</p><h2 id="recent-heading">Recent activity</h2></div>
+                  <button class="link-btn" type="button" data-open-activity>View all</button>
+                </div>
+                <div id="recent-list"></div>
+                <div class="empty-state" id="recent-empty">
+                  <p>Nothing recorded yet.</p>
+                  <span>Verified, failed, and interrupted attempts appear here without sensitive paths.</span>
+                </div>
+              </section>
+            </div>
+          </section>
+
+          <section class="view" data-view-panel="transfer" aria-label="Transfer">
+            <div class="page-intro">
+              <p class="kicker">Verified transfer</p>
+              <h1>Send files with a connection you understand.</h1>
+              <p>Choose what to send, identify the SSH destination, then review every security-sensitive detail before Vericopy connects.</p>
+            </div>
+
+            <div class="session-bar">
+              <span class="micro-label">Session</span>
+              <span id="session-chips" class="chips"></span>
+              <span class="spacer"></span>
+              <input id="session-name" type="text" placeholder="Save as…" maxlength="80" autocomplete="off" aria-label="Session name" />
+              <button class="btn btn-secondary btn-sm" type="button" id="save-session" data-tip="Saves every field of this form on this computer, including source and key paths." data-tip-pos="right">Save session</button>
+            </div>
+
+            <form id="transfer-form" class="form" novalidate>
+              <section class="form-step" aria-labelledby="source-step-heading">
+                <div class="step-heading">
+                  <span>01</span>
+                  <div><h2 id="source-step-heading">Choose what to send</h2><p>A regular file or a folder from this computer.</p></div>
+                </div>
+                <div class="step-body">
+                  <div class="field">
+                    <div class="label-row">
+                      <label for="source">Source <span class="req">required</span></label>
+                      <span class="spacer"></span>
+                      <button class="link-btn" type="button" id="choose-file">Choose file</button>
+                      <button class="link-btn" type="button" id="choose-folder">Choose folder</button>
+                    </div>
+                    <input id="source" name="source" type="text" class="mono" placeholder="C:\Users\me\Documents\report.zip" autocomplete="off" spellcheck="false" required />
+                  </div>
+                </div>
+              </section>
+
+              <section class="form-step" aria-labelledby="destination-step-heading">
+                <div class="step-heading">
+                  <span>02</span>
+                  <div><h2 id="destination-step-heading">Name the destination</h2><p>Use an explicit SSH account and absolute remote path.</p></div>
+                </div>
+                <div class="step-body">
+                  <div class="field-row">
+                    <div class="field">
+                      <label for="destination">Destination <span class="req">required</span></label>
+                      <input id="destination" name="destination" type="text" class="mono" placeholder="user@host:/absolute/path" autocomplete="off" spellcheck="false" required />
+                    </div>
+                    <div class="field field-port">
+                      <label for="port" data-tip="SSH port for the destination host. Empty uses 22."><span class="tip-text">Port</span></label>
+                      <input id="port" name="port" type="number" class="mono" min="1" max="65535" placeholder="22" />
+                    </div>
+                    <div class="field field-policy">
+                      <label for="permissions" data-tip="Permissions applied at the destination. Private: owner only. Shared: group read/write. Service readonly: owner writes, group reads. Public readonly: world readable. Preserve: keep source mode." data-tip-pos="right"><span class="tip-text">Destination policy</span></label>
+                      <select id="permissions" name="permissions">
+                        <option value="private">Private</option>
+                        <option value="shared">Shared group</option>
+                        <option value="service-readonly">Service readonly</option>
+                        <option value="public-readonly">Public readonly</option>
+                        <option value="preserve">Preserve mode</option>
+                      </select>
+                    </div>
+                  </div>
+                </div>
+              </section>
+
+              <section class="form-step" aria-labelledby="auth-heading">
+                <div class="step-heading">
+                  <span>03</span>
+                  <div><h2 id="auth-heading">Choose authentication</h2><p>Keys are recommended; a password can be used once.</p></div>
+                </div>
+                <div class="step-body auth-card">
+                  <div class="auth-heading">
+                    <div>
+                      <h3>How should Vericopy connect?</h3>
+                      <p>The selected method is reviewable. Credentials are never added to transfer history.</p>
+                    </div>
+                    <button class="link-btn" type="button" data-open-help>Connection help</button>
+                  </div>
+                  <div class="auth-options" role="radiogroup" aria-label="SSH authentication method">
+                    <label class="auth-option is-selected">
+                      <input type="radio" name="authentication" value="key" checked />
+                      <span><strong>SSH key or agent</strong><small>Recommended · no password handled by Vericopy</small></span>
+                    </label>
+                    <label class="auth-option">
+                      <input type="radio" name="authentication" value="password" />
+                      <span><strong>One-time password</strong><small>Used for this connection · never saved</small></span>
+                    </label>
+                  </div>
+
+                  <div class="auth-panel" id="key-auth-panel">
+                    <div class="field">
+                      <div class="label-row">
+                        <label for="identity" data-tip="Leave empty to use the SSH agent or a standard key in ~/.ssh. An encrypted key should be loaded into the agent first."><span class="tip-text">Private key</span></label>
+                        <span class="opt">optional</span>
+                        <span class="spacer"></span>
+                        <button class="link-btn" type="button" id="choose-identity">Choose key</button>
+                      </div>
+                      <input id="identity" name="identity" type="text" class="mono" placeholder="Use SSH agent or a standard key" autocomplete="off" spellcheck="false" />
+                      <p class="field-note">Leave this empty to use the SSH agent. Vericopy never copies or modifies your private key.</p>
+                    </div>
+                  </div>
+
+                  <div class="auth-panel" id="password-auth-panel" hidden>
+                    <div class="field">
+                      <div class="label-row">
+                        <label for="password">SSH password</label>
+                        <span class="req">required for this connection</span>
+                        <span class="spacer"></span>
+                        <button class="link-btn" type="button" id="toggle-password" aria-pressed="false">Show</button>
+                      </div>
+                      <input id="password" name="password" type="password" placeholder="Enter the password for the SSH user" autocomplete="off" />
+                      <p class="secret-note"><span class="dot is-on"></span><span><strong>One-time use.</strong> Cleared from this form when the transfer starts; excluded from saved sessions, history, progress, and logs.</span></p>
+                    </div>
+                  </div>
+                </div>
+              </section>
+
+              <section class="form-step" aria-labelledby="options-step-heading">
+                <div class="step-heading">
+                  <span>04</span>
+                  <div><h2 id="options-step-heading">Set transfer behavior</h2><p>Safe defaults are already selected.</p></div>
+                </div>
+                <div class="step-body">
+                  <div class="checks">
+                    <label data-tip="Copy the folder and everything inside it. Required when the source is a folder."><input id="recursive" name="recursive" type="checkbox" /><span class="tip-text">Recursive</span></label>
+                    <label data-tip="Continue a compatible partial upload instead of restarting the whole file."><input id="resume" name="resume" type="checkbox" checked /><span class="tip-text">Resume partial</span></label>
+                    <label data-tip="Allow replacing a file that already exists at the destination. Off protects existing files."><input id="overwrite" name="overwrite" type="checkbox" /><span class="tip-text">Overwrite existing</span></label>
+                    <label data-tip="Keep the source modification time on the remote copy."><input id="preserve-time" name="preserve-time" type="checkbox" /><span class="tip-text">Preserve mtime</span></label>
+                  </div>
+
+                  <div class="advanced-wrap">
+                    <button class="disclosure" type="button" id="advanced-toggle" aria-expanded="false">Advanced options &#9662;</button>
+                    <div class="advanced" id="advanced" hidden>
+                      <div class="field">
+                        <div class="label-row">
+                          <label for="known-hosts" data-tip="Host key file for strict verification. Empty uses ~/.ssh/known_hosts. Unknown or changed host keys stop the transfer."><span class="tip-text">known_hosts</span></label>
+                          <span class="opt">optional</span>
+                        </div>
+                        <input id="known-hosts" name="known-hosts" type="text" class="mono" placeholder="~/.ssh/known_hosts" autocomplete="off" spellcheck="false" />
+                      </div>
+                      <div class="field">
+                        <div class="label-row">
+                          <label for="group" data-tip="Set the destination group after transfer (chgrp on the remote host)."><span class="tip-text">Remote group</span></label>
+                          <span class="opt">optional</span>
+                        </div>
+                        <input id="group" name="group" type="text" class="mono" placeholder="readers" autocomplete="off" spellcheck="false" />
+                      </div>
+                      <div class="field">
+                        <div class="label-row">
+                          <label for="readable-by" data-tip="After verification, check that this account can traverse and read the destination." data-tip-pos="right"><span class="tip-text">Verify readable by</span></label>
+                          <span class="opt">optional</span>
+                        </div>
+                        <input id="readable-by" name="readable-by" type="text" class="mono" placeholder="service account" autocomplete="off" spellcheck="false" />
+                      </div>
+                    </div>
+                  </div>
+                  <div class="actions">
+                    <button class="btn btn-secondary" type="submit" id="review-button">Review transfer</button>
+                    <button class="btn btn-primary" type="button" id="start-transfer" disabled>Start transfer</button>
+                    <button class="btn btn-quiet" type="button" id="cancel-transfer" hidden>Cancel</button>
+                    <span class="notice" id="notice" hidden role="status"></span>
+                  </div>
+                </div>
+              </section>
+            </form>
+
+            <div class="review" id="review-panel" hidden>
+              <div class="review-head">
+                <strong id="review-title">Ready</strong>
+                <span class="rule"></span>
+              </div>
+              <dl class="review-list" id="review-list"></dl>
+              <div class="progress" id="progress-panel" hidden>
+                <div class="progress-head">
+                  <span class="micro-label accent" id="progress-phase">Preparing</span>
+                  <span class="spacer"></span>
+                  <span class="progress-detail" id="progress-detail"></span>
+                </div>
+                <div class="bar"><div class="bar-fill" id="progress-fill"></div></div>
+                <p class="progress-file" id="progress-file"></p>
+              </div>
+              <p class="review-foot" id="review-security">strict known_hosts · sha-256 readback · credentials never saved</p>
+            </div>
+          </section>
+
+          <section class="view" data-view-panel="activity" aria-label="Activity">
+            <div class="page-intro activity-intro">
+              <p class="kicker">Local record</p>
+              <h1>Transfer activity, without sensitive paths.</h1>
+              <p>Vericopy keeps a concise record on this computer so completed, failed, and interrupted work remains understandable.</p>
+              <button class="btn btn-quiet" type="button" id="clear-history">Clear history</button>
+            </div>
+            <section class="activity-panel" aria-label="Transfer history">
+              <div id="history-list" aria-live="polite"></div>
+              <div class="empty-state empty-state-large" id="history-empty"><p>Nothing recorded yet.</p><span>History stays on this computer and redacts complete source and remote paths.</span></div>
+            </section>
+          </section>
+
+          <section class="view" data-view-panel="help" aria-label="Help">
+            <div class="page-intro help-intro">
+              <p class="kicker">Help and security</p>
+              <h1>A clear path from first connection to verified copy.</h1>
+              <p>Vericopy is a local SSH file-transfer application. It checks the server identity, copies through SFTP, reads the remote file back, and verifies its SHA-256 digest.</p>
+            </div>
+
+            <div class="quick-start" aria-label="Quick start">
+              <article><span>01</span><h2>Choose a source</h2><p>Select one file or a folder. Folder transfers require Recursive.</p></article>
+              <article><span>02</span><h2>Name the destination</h2><p>Use <code>user@host:/absolute/path</code>. Include the SSH account explicitly.</p></article>
+              <article><span>03</span><h2>Choose authentication</h2><p>Use your SSH agent or key when available, or enter a one-time password.</p></article>
+              <article><span>04</span><h2>Review and transfer</h2><p>Confirm the host, path, policy, and options before Vericopy connects.</p></article>
+            </div>
+
+            <div class="help-grid">
+              <article class="help-card">
+                <p class="micro-label">Recommended</p>
+                <h2>SSH key or agent</h2>
+                <p>An SSH agent keeps the private-key operation outside Vericopy. Load your key into the operating system’s SSH agent, or choose an unencrypted private-key file.</p>
+                <ul>
+                  <li>Leave Private key empty to try the agent and standard key locations.</li>
+                  <li>For an encrypted key, load it into the agent first.</li>
+                  <li>Saving a session stores the key path, never the key contents.</li>
+                </ul>
+              </article>
+
+              <article class="help-card">
+                <p class="micro-label">Easiest first connection</p>
+                <h2>One-time SSH password</h2>
+                <p>Choose password authentication when the server account permits it. The password is handed directly to the native SSH connection and is not added to saved sessions or transfer history.</p>
+                <ul>
+                  <li>Vericopy clears the visible field as the transfer starts.</li>
+                  <li>The password still exists briefly in application memory while authenticating.</li>
+                  <li>Host-key verification remains mandatory.</li>
+                  <li>Keyboard-interactive and multi-factor prompts are not handled by this mode.</li>
+                </ul>
+              </article>
+
+              <article class="help-card help-card-wide">
+                <p class="micro-label">Required for every connection</p>
+                <h2>Verify the server before sending credentials</h2>
+                <p><code>known_hosts</code> binds the server name to its public host key. Obtain the fingerprint from the server administrator or another trusted channel, compare it independently, and only then add it to your local <code>known_hosts</code> file. Vericopy stops on unknown or changed keys and offers no bypass.</p>
+              </article>
+
+              <article class="help-card help-card-wide safety-card">
+                <p class="micro-label">What Vericopy protects</p>
+                <h2>Your review is part of the security model.</h2>
+                <div class="safety-columns">
+                  <div><strong>Always</strong><p>Strict host verification, native SFTP, safe resume checks, SHA-256 readback, and explicit destination permissions.</p></div>
+                  <div><strong>Never</strong><p>Password persistence, password logging, telemetry, silent host-key acceptance, or shell interpolation of file paths.</p></div>
+                </div>
+                <button class="btn btn-primary" type="button" data-open-transfer>Set up a transfer</button>
+              </article>
+            </div>
+          </section>
+
+        </div>
+      </main>
+
+      <footer class="statusbar">
+        <span id="status-engine">engine ready</span>
+        <span id="status-agent">agent…</span>
+        <span class="spacer"></span>
+        <span class="local-only"><span class="dot is-on"></span>local only</span>
+        <span id="status-version">…</span>
+      </footer>
+    </div>
+    <script type="module" src="./app.js"></script>
+  </body>
+</html>

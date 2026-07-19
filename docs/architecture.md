@@ -21,16 +21,18 @@ config:
     clusterBorder: '#a16f0b'
 ---
 flowchart TB
+    Desktop["Desktop UI<br>Wails workspace and native file selection"]
     CLI["CLI layer<br>Cobra commands and stable output"]
     Parse["Input boundary<br>local paths, remote specs, modes"]
     Policy["Policy layer<br>overwrite, permissions, diagnostics"]
-    SSH["SSH boundary<br>agent or key, strict known_hosts"]
+    SSH["SSH boundary<br>key, agent, or one-time password<br>strict known_hosts"]
     Engine["Transfer engine<br>partial state, resume, SHA-256"]
     SFTP["Native SFTP adapter<br>files and metadata"]
     Access["Access checker<br>validated account lookup and SFTP stat"]
     Rsync["Optional rsync adapter<br>dialect preflight and argument vector"]
     Remote["Remote OpenSSH server<br>SFTP subsystem"]
 
+    Desktop --> Parse
     CLI --> Parse --> Policy
     Policy --> SSH --> SFTP --> Remote
     Policy --> Engine --> SFTP
@@ -95,11 +97,11 @@ sequenceDiagram
 
 ## Partial state
 
-For destination `movie.mkv`, Vericopy creates a hidden name resembling:
+For destination `quarterly-report.zip`, Vericopy creates a hidden name resembling:
 
 ```text
-.movie.mkv.vericopy-f6247a91b18dbe31.partial
-.movie.mkv.vericopy-f6247a91b18dbe31.partial.json
+.quarterly-report.zip.vericopy-f6247a91b18dbe31.partial
+.quarterly-report.zip.vericopy-f6247a91b18dbe31.partial.json
 ```
 
 The suffix binds the destination, source size, and source prefix digest. The
@@ -127,4 +129,3 @@ why overwrite must be explicit.
 The process derives a context from `SIGINT` and `SIGTERM`. Source reads observe
 that context. Ordinary interruption retains compatible partial state and its
 restrictive metadata so `--resume` can continue safely.
-

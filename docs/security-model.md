@@ -45,13 +45,22 @@ the fingerprint through a separate trusted channel before storing it.
 
 ## Authentication
 
-SSH agent and private-key authentication are supported. Passwords and key
-passphrases are never accepted as command arguments. Encrypted keys should be
-loaded into an agent with `ssh-add`. Private-key contents and authentication
-causes are not serialized in public errors.
+SSH agent and private-key authentication are supported and remain recommended.
+The desktop app also supports an explicitly selected, one-time SSH password.
+Passwords and key passphrases are never accepted as command arguments.
+Encrypted keys should be loaded into an agent with `ssh-add`. Private-key
+contents, passwords, and authentication causes are not serialized in public
+errors.
 
-The initial release does not implement interactive password prompts. This keeps
-automation predictable and avoids accidental credential exposure.
+The desktop password crosses the local WebView-to-Go bridge only when a transfer
+starts, is used by the native SSH handshake, and is excluded from transfer
+reviews, saved sessions, history, progress, and logs. The visible field is
+cleared when the transfer begins. Like any credential typed into an application,
+the value exists briefly in process memory and cannot be promised absent from a
+compromised host or process dump. Password mode never relaxes strict host-key
+verification and is never attempted as an automatic fallback from key mode.
+It implements SSH password authentication only; keyboard-interactive and
+multi-factor challenge flows are not answered automatically.
 
 ## Path and command injection
 
@@ -125,6 +134,26 @@ Paths can themselves be sensitive. Human output necessarily reports the source
 and destination involved in a requested operation; operators should protect
 logs accordingly. Resume sidecars do not store the local source path.
 
+## Desktop local state
+
+The desktop Go state store is local to the operating-system user, written
+atomically, and restricted to that user where filesystem permissions support
+it. It is separate from WebView storage.
+
+Saved sessions intentionally retain the complete transfer form for convenience,
+including the local source path, SSH identity-key path, and selected
+authentication method. They store path and preference strings only, never
+private-key contents, passwords, or key passphrases. Anyone
+who can read the user's Vericopy state file can learn those paths, destination
+details, and transfer preferences, so the local user account remains a trust
+boundary. Deleting a session removes only its saved form data and never touches
+the referenced source, key, host-key file, or remote destination.
+
+Legacy connection profiles remain temporarily available for migration. Unlike
+sessions, they contain only a remote destination, port, and `known_hosts`
+reference; they never contain source or identity-key paths. Transfer history
+keeps its existing redaction contract and does not gain any session fields.
+
 ## Existing destination policy
 
 Existing destinations are rejected unless `--overwrite` is explicit.
@@ -148,4 +177,3 @@ machine-readable detail. Cancellation retains partial state when safe.
 - Anonymous or password-in-argument authentication.
 - Protection from a compromised local machine or privileged remote operator.
 - A remote backup format, history store, or bidirectional synchronization engine.
-

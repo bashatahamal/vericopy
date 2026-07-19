@@ -1,4 +1,5 @@
 GO ?= go
+WAILS ?= wails
 VERSION := $(shell tr -d '\r\n' < VERSION)
 COMMIT ?= $(shell git rev-parse --short=12 HEAD 2>/dev/null || printf unknown)
 BUILD_DATE ?= unknown
@@ -7,13 +8,20 @@ LDFLAGS := -s -w \
 	-X github.com/bashatahamal/vericopy/internal/version.Commit=$(COMMIT) \
 	-X github.com/bashatahamal/vericopy/internal/version.BuildDate=$(BUILD_DATE)
 
-.PHONY: all build test race race-container vet staticcheck vulncheck check integration cross-build clean
+.PHONY: all build desktop-build desktop-package test race race-container vet staticcheck vulncheck check integration cross-build clean
 
 all: check build
 
 build:
 	mkdir -p bin
 	$(GO) build -trimpath -buildvcs=false -ldflags '$(LDFLAGS)' -o bin/vericopy ./cmd/vericopy
+
+desktop-build:
+	mkdir -p bin
+	$(GO) build -tags desktop -trimpath -buildvcs=false -ldflags '$(LDFLAGS)' -o bin/vericopy-desktop ./cmd/vericopy-desktop
+
+desktop-package:
+	cd cmd/vericopy-desktop && $(WAILS) build -clean
 
 test:
 	$(GO) test -count=1 ./...
@@ -36,7 +44,7 @@ vulncheck:
 check: test vet staticcheck vulncheck
 
 integration:
-	./integration/run.sh
+	sh ./integration/run.sh
 
 cross-build:
 	mkdir -p bin

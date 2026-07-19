@@ -7,12 +7,12 @@ import (
 )
 
 func TestPresets(t *testing.T) {
-	policy, err := permissions.Resolve("media-readonly", "", "")
+	policy, err := permissions.Resolve("service-readonly", "", "")
 	if err != nil {
 		t.Fatal(err)
 	}
 	if permissions.Octal(policy.Directory) != "2750" || permissions.Octal(policy.File) != "0640" {
-		t.Fatalf("unexpected media policy: dir=%s file=%s", permissions.Octal(policy.Directory), permissions.Octal(policy.File))
+		t.Fatalf("unexpected service policy: dir=%s file=%s", permissions.Octal(policy.Directory), permissions.Octal(policy.File))
 	}
 }
 

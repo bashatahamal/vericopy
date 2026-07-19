@@ -1,0 +1,11 @@
+{
+  "$schema": "https://wails.io/schemas/config.v2.json",
+  "name": "Vericopy",
+  "outputfilename": "vericopy-desktop",
+  "frontend:install": "npm --version",
+  "frontend:build": "npm run build",
+  "author": {
+    "name": "bashatahamal",
+    "email": "bashatahamal@gmail.com"
+  }
+}

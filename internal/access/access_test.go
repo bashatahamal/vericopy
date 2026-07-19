@@ -49,7 +49,7 @@ func (i metadataInfo) IsDir() bool        { return i.mode.IsDir() }
 func (i metadataInfo) Sys() any           { return &pkgSFTP.FileStat{UID: i.uid, GID: i.gid} }
 
 func TestValidateAccountName(t *testing.T) {
-	for _, valid := range []string{"jellyfin", "media-reader", "svc_media.1"} {
+	for _, valid := range []string{"document-indexer", "report-reader", "svc_reader.1"} {
 		if err := access.ValidateAccountName(valid); err != nil {
 			t.Fatalf("valid name %q rejected: %v", valid, err)
 		}
@@ -62,15 +62,15 @@ func TestValidateAccountName(t *testing.T) {
 }
 
 func TestResolveUserUsesValidatedFixedCommands(t *testing.T) {
-	resolver := access.Resolver{Runner: runner{"id -u jellyfin": "998\n", "id -G jellyfin": "998 44\n"}}
-	identity, err := resolver.User(context.Background(), "jellyfin")
+	resolver := access.Resolver{Runner: runner{"id -u document-indexer": "998\n", "id -G document-indexer": "998 44\n"}}
+	identity, err := resolver.User(context.Background(), "document-indexer")
 	if err != nil {
 		t.Fatal(err)
 	}
 	if identity.UID != 998 || len(identity.Groups) != 2 || identity.Groups[1] != 44 {
 		t.Fatalf("unexpected identity: %#v", identity)
 	}
-	_, err = resolver.User(context.Background(), "jellyfin; id")
+	_, err = resolver.User(context.Background(), "document-indexer; id")
 	if err == nil || !strings.Contains(err.Error(), "INVALID_ARGUMENTS") {
 		t.Fatalf("unsafe name was not rejected: %v", err)
 	}
@@ -78,18 +78,18 @@ func TestResolveUserUsesValidatedFixedCommands(t *testing.T) {
 
 func TestAccessCheckUsesParentTraverseAndTargetRead(t *testing.T) {
 	remote := metadataFS{
-		"/":               metadataInfo{name: "/", mode: fs.ModeDir | 0o755, uid: 0, gid: 0},
-		"/media":          metadataInfo{name: "media", mode: fs.ModeDir | 0o750, uid: 1000, gid: 44},
-		"/media/Film.mkv": metadataInfo{name: "Film.mkv", mode: 0o640, uid: 1000, gid: 44},
+		"/":                            metadataInfo{name: "/", mode: fs.ModeDir | 0o755, uid: 0, gid: 0},
+		"/documents":                   metadataInfo{name: "documents", mode: fs.ModeDir | 0o750, uid: 1000, gid: 44},
+		"/documents/annual-report.pdf": metadataInfo{name: "annual-report.pdf", mode: 0o640, uid: 1000, gid: 44},
 	}
-	identity := access.Identity{Name: "jellyfin", UID: 998, Groups: []uint32{44}}
-	report, err := access.Check(context.Background(), remote, "/media/Film.mkv", identity)
+	identity := access.Identity{Name: "document-indexer", UID: 998, Groups: []uint32{44}}
+	report, err := access.Check(context.Background(), remote, "/documents/annual-report.pdf", identity)
 	if err != nil || !report.Readable {
 		t.Fatalf("group access rejected: report=%#v err=%v", report, err)
 	}
 
-	remote["/media"] = metadataInfo{name: "media", mode: fs.ModeDir | 0o740, uid: 1000, gid: 44}
-	report, err = access.Check(context.Background(), remote, "/media/Film.mkv", identity)
+	remote["/documents"] = metadataInfo{name: "documents", mode: fs.ModeDir | 0o740, uid: 1000, gid: 44}
+	report, err = access.Check(context.Background(), remote, "/documents/annual-report.pdf", identity)
 	if err == nil || report.Readable || verrors.As(err).Code != verrors.CodeDestinationNotReadable {
 		t.Fatalf("missing traverse permission accepted: report=%#v err=%v", report, err)
 	}

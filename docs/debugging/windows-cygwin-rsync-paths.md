@@ -8,13 +8,13 @@ interchangeable across binaries.
 Git Bash and MINGW commonly present drive `C:` as:
 
 ```text
-/c/Users/me/Downloads/Film.mkv
+/c/Users/me/Documents/annual-report.pdf
 ```
 
 A Cygwin-built rsync commonly expects:
 
 ```text
-/cygdrive/c/Users/me/Downloads/Film.mkv
+/cygdrive/c/Users/me/Documents/annual-report.pdf
 ```
 
 Launching the Cygwin binary from Git Bash does not make it a MINGW binary. Path
@@ -52,7 +52,7 @@ Do not blindly replace `/c` with `/cygdrive/c`. Cygwin can use a customized
 drive prefix. Ask the `cygpath` installed beside the selected Cygwin tools:
 
 ```sh
-/path/to/cygwin/bin/cygpath -u 'C:\Users\me\Downloads\Film.mkv'
+/path/to/cygwin/bin/cygpath -u 'C:\Users\me\Documents\annual-report.pdf'
 ```
 
 Use the output as one quoted argument. Do not build a shell command by joining
@@ -63,8 +63,8 @@ untrusted path strings.
 With Vericopy:
 
 ```sh
-vericopy copy '/cygdrive/c/Users/me/Downloads/Film.mkv' \
-  'user@server:/srv/media/Film.mkv' \
+vericopy copy '/cygdrive/c/Users/me/Documents/annual-report.pdf' \
+  'user@server:/srv/shared/annual-report.pdf' \
   --backend rsync --dry-run --no-clobber
 ```
 
@@ -72,8 +72,8 @@ With rsync directly, keep options and paths as separate shell arguments:
 
 ```sh
 rsync --dry-run --itemize-changes --protect-args --ignore-existing -- \
-  '/cygdrive/c/Users/me/Downloads/Film.mkv' \
-  'user@server:/srv/media/Film.mkv'
+  '/cygdrive/c/Users/me/Documents/annual-report.pdf' \
+  'user@server:/srv/shared/annual-report.pdf'
 ```
 
 Confirm the source count, destination, and total size before removing
@@ -94,12 +94,12 @@ needs, but it does not teach a Cygwin binary to understand MINGW paths or a
 MINGW binary to understand Cygwin paths. First identify the executable, then use
 the form that executable expects.
 
-## Why compression is usually wrong for MKV
+## Why compression is usually unhelpful for ZIP archives
 
-MKV commonly contains video and audio streams that are already compressed.
-Rsync's transport compression consumes CPU while finding little additional size
-reduction. It can reduce throughput on a fast network. Vericopy therefore does
-not add compression by default for MKV, MP4, ZIP, JPEG, and similar formats.
+ZIP archives, JPEG images, PNG images, and many other common file types are
+already compressed. Rsync's transport compression consumes CPU while finding
+little additional size reduction. It can reduce throughput on a fast network,
+so Vericopy does not add compression by default.
 
 ## Diagnostic
 
@@ -114,4 +114,3 @@ Bash/MINGW syntax.
 Next: Convert the path with that Cygwin installation's cygpath command, then
 run a dry-run preflight.
 ```
-

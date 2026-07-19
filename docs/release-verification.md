@@ -3,6 +3,11 @@
 Every tagged release produces six platform archives, a `SHA256SUMS` file, SBOM
 files, and GitHub artifact attestations.
 
+These are currently CLI archives. Native desktop packages are a separate
+release gate: Wails must build each package on its target operating system, and
+Windows/macOS signing credentials must be available before those packages are
+published. See the [desktop acceptance checklist](desktop-acceptance.md).
+
 ```text
 vericopy_windows_amd64.zip
 vericopy_windows_arm64.zip
@@ -79,12 +84,16 @@ GitHub Actions build provenance, not whether the software is safe for every use.
 6. Commit the release and create a signed `vX.Y.Z` tag.
 7. Push only after review. The tag workflow creates a draft release.
 8. Verify checksums and attestations from the draft before publishing it.
+9. For a desktop release, run `make desktop-package` on each native platform,
+   complete the desktop acceptance checklist, sign the packages, and add their
+   checksums to the release evidence before publishing.
 
-Repository administrators must enable GitHub Actions and allow GitHub artifact
-attestations. The release job requests `contents: write`, `id-token: write`, and
-`attestations: write` only in that job. Branch protection, required checks,
-tag-protection rules, and the final release publication remain manual repository
-settings.
+GitHub Actions, artifact-attestation permissions, `main` required checks,
+private vulnerability reporting, Dependabot alerts/security updates, and an
+immutable `v*` tag ruleset are enabled for this repository. The release job
+requests `contents: write`, `id-token: write`, and `attestations: write` only
+in that job. Final release publication remains a manual decision after draft
+artifact inspection.
 
 ## Reproducible builds
 
@@ -96,4 +105,3 @@ derive `BUILD_DATE` from the tagged commit or `SOURCE_DATE_EPOCH`.
 Go module downloads are authenticated through `go.sum`. A bit-for-bit rebuild
 also depends on matching the Go toolchain, operating system packaging behavior,
 and GoReleaser version recorded by the workflow.
-

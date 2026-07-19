@@ -9,8 +9,8 @@ import (
 
 func TestPartialNaming(t *testing.T) {
 	metadata := transfer.PartialMetadata{Schema: 1, SourceSize: 42, PrefixSHA256: strings.Repeat("a", 64)}
-	partial, sidecar := transfer.PartialPaths("/srv/media/My Film.mkv", metadata)
-	if partial == "/srv/media/My Film.mkv" || !strings.HasPrefix(partial, "/srv/media/.My Film.mkv.vericopy-") {
+	partial, sidecar := transfer.PartialPaths("/srv/shared/quarterly-report.zip", metadata)
+	if partial == "/srv/shared/quarterly-report.zip" || !strings.HasPrefix(partial, "/srv/shared/.quarterly-report.zip.vericopy-") {
 		t.Fatalf("unsafe partial path: %q", partial)
 	}
 	if sidecar != partial+".json" {

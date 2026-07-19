@@ -17,11 +17,11 @@ type Policy struct {
 }
 
 var presets = map[string]Policy{
-	"private":         {Name: "private", Directory: 0o700, File: 0o600},
-	"shared":          {Name: "shared", Directory: fs.ModeSetgid | 0o770, File: 0o660},
-	"media-readonly":  {Name: "media-readonly", Directory: fs.ModeSetgid | 0o750, File: 0o640},
-	"public-readonly": {Name: "public-readonly", Directory: 0o755, File: 0o644},
-	"preserve":        {Name: "preserve", Preserve: true},
+	"private":          {Name: "private", Directory: 0o700, File: 0o600},
+	"shared":           {Name: "shared", Directory: fs.ModeSetgid | 0o770, File: 0o660},
+	"service-readonly": {Name: "service-readonly", Directory: fs.ModeSetgid | 0o750, File: 0o640},
+	"public-readonly":  {Name: "public-readonly", Directory: 0o755, File: 0o644},
+	"preserve":         {Name: "preserve", Preserve: true},
 }
 
 // Resolve returns a validated preset with optional octal overrides.
@@ -33,7 +33,7 @@ func Resolve(name, fileMode, directoryMode string) (Policy, error) {
 	if !ok {
 		return Policy{}, verrors.New(verrors.CodeInvalidPermission,
 			fmt.Sprintf("unknown permission policy %q", name)).WithHint(
-			"Choose private, shared, media-readonly, public-readonly, or preserve.")
+			"Choose private, shared, service-readonly, public-readonly, or preserve.")
 	}
 	var err error
 	if fileMode != "" {

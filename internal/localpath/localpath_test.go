@@ -13,11 +13,11 @@ func TestInspectPathDialects(t *testing.T) {
 		want                string
 	}{
 		{"drive backslash", `C:\Users\Person\Downloads\HoTD`, "windows", localpath.KindWindowsDrive, `C:\Users\Person\Downloads\HoTD`},
-		{"drive slash", `d:/Media/Film`, "windows", localpath.KindWindowsDrive, `d:\Media\Film`},
-		{"mingw", `/c/Users/José/My Film.mkv`, "windows", localpath.KindMINGW, `C:\Users\José\My Film.mkv`},
-		{"cygwin", `/cygdrive/e/動画/file.mkv`, "windows", localpath.KindCygwin, `E:\動画\file.mkv`},
-		{"unc", `\\server\media\Film.mkv`, "windows", localpath.KindUNC, `\\server\media\Film.mkv`},
-		{"posix", `/home/user/My Film.mkv`, "linux", localpath.KindPOSIX, `/home/user/My Film.mkv`},
+		{"drive slash", `d:/Documents/QuarterlyReport`, "windows", localpath.KindWindowsDrive, `d:\Documents\QuarterlyReport`},
+		{"mingw", `/c/Users/José/Documents/QuarterlyReport.zip`, "windows", localpath.KindMINGW, `C:\Users\José\Documents\QuarterlyReport.zip`},
+		{"cygwin", `/cygdrive/e/資料/annual-report.pdf`, "windows", localpath.KindCygwin, `E:\資料\annual-report.pdf`},
+		{"unc", `\\server\shared\annual-report.pdf`, "windows", localpath.KindUNC, `\\server\shared\annual-report.pdf`},
+		{"posix", `/home/user/Documents/annual-report.pdf`, "linux", localpath.KindPOSIX, `/home/user/Documents/annual-report.pdf`},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
