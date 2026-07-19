@@ -56,7 +56,7 @@ func TestStateStoreSessionsRoundTripAndUpsertByName(t *testing.T) {
 	want := SessionProfile{
 		Name: "Monthly reports", Source: `C:\Users\me\Documents\report.zip`,
 		Destination: "transfer@files.example:/srv/shared/report.zip", Port: 2222,
-		Permissions: "shared", Identity: `C:\Users\me\.ssh\id_ed25519`,
+		Permissions: "shared", Authentication: "key", Identity: `C:\Users\me\.ssh\id_ed25519`,
 		KnownHosts: `C:\Users\me\.ssh\known_hosts`, Group: "reporters", ReadableBy: "document-indexer",
 		Recursive: true, Resume: true, Overwrite: true, PreserveTime: true,
 	}
@@ -89,6 +89,9 @@ func TestStateStoreSessionsRoundTripAndUpsertByName(t *testing.T) {
 	if !strings.Contains(string(data), `C:\\Users\\me\\Documents\\report.zip`) ||
 		!strings.Contains(string(data), `C:\\Users\\me\\.ssh\\id_ed25519`) {
 		t.Fatalf("session paths were not persisted: %s", data)
+	}
+	if strings.Contains(string(data), `"password":`) {
+		t.Fatalf("a password field exists in persisted session state: %s", data)
 	}
 
 	replacement := want
@@ -134,6 +137,7 @@ func TestStateStoreRejectsInvalidSessions(t *testing.T) {
 		{name: "missing SSH user", mutate: func(session *SessionProfile) { session.Destination = "files.example:/srv/reports" }},
 		{name: "relative destination", mutate: func(session *SessionProfile) { session.Destination = "transfer@files.example:reports" }},
 		{name: "unknown policy", mutate: func(session *SessionProfile) { session.Permissions = "invented" }, code: verrors.CodeInvalidPermission},
+		{name: "unknown authentication", mutate: func(session *SessionProfile) { session.Authentication = "magic" }},
 		{name: "key contents instead of path", mutate: func(session *SessionProfile) { session.Identity = "-----BEGIN PRIVATE KEY-----\nsecret" }},
 	}
 	for _, test := range tests {
@@ -149,6 +153,27 @@ func TestStateStoreRejectsInvalidSessions(t *testing.T) {
 				t.Fatalf("invalid session was accepted: %#v err=%v", session, err)
 			}
 		})
+	}
+}
+
+func TestPasswordSessionPersistsOnlyTheAuthenticationChoice(t *testing.T) {
+	store := newStateStore(filepath.Join(t.TempDir(), "desktop-state.json"))
+	saved, err := store.SaveSession(SessionProfile{
+		Name: "Password server", Destination: "transfer@files.example:/srv/shared/report.pdf",
+		Authentication: "password", Identity: `C:\Users\me\.ssh\id_ed25519`, Permissions: "private",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if saved.Authentication != "password" || saved.Identity != "" {
+		t.Fatalf("password session retained key-only state: %#v", saved)
+	}
+	data, err := os.ReadFile(store.path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(data), `"password":`) || strings.Contains(string(data), "id_ed25519") {
+		t.Fatalf("password session persisted secret or irrelevant key state: %s", data)
 	}
 }
 

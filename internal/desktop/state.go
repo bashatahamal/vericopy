@@ -39,23 +39,25 @@ type ConnectionProfile struct {
 }
 
 // SessionProfile stores the complete desktop transfer form in the local,
-// user-protected state file. Source and identity are paths, not file contents;
-// passwords, key passphrases, and private-key contents are never accepted.
+// user-protected state file. Source and identity are paths, not file contents.
+// Authentication stores only the selected method; passwords, key passphrases,
+// and private-key contents are never accepted.
 type SessionProfile struct {
-	Name         string    `json:"name"`
-	Destination  string    `json:"destination"`
-	Port         int       `json:"port"`
-	Permissions  string    `json:"permissions"`
-	Identity     string    `json:"identity"`
-	KnownHosts   string    `json:"known_hosts"`
-	Group        string    `json:"group"`
-	ReadableBy   string    `json:"readable_by"`
-	Recursive    bool      `json:"recursive"`
-	Resume       bool      `json:"resume"`
-	Overwrite    bool      `json:"overwrite"`
-	PreserveTime bool      `json:"preserve_time"`
-	Source       string    `json:"source"`
-	UpdatedAt    time.Time `json:"updated_at"`
+	Name           string    `json:"name"`
+	Destination    string    `json:"destination"`
+	Port           int       `json:"port"`
+	Permissions    string    `json:"permissions"`
+	Authentication string    `json:"authentication"`
+	Identity       string    `json:"identity"`
+	KnownHosts     string    `json:"known_hosts"`
+	Group          string    `json:"group"`
+	ReadableBy     string    `json:"readable_by"`
+	Recursive      bool      `json:"recursive"`
+	Resume         bool      `json:"resume"`
+	Overwrite      bool      `json:"overwrite"`
+	PreserveTime   bool      `json:"preserve_time"`
+	Source         string    `json:"source"`
+	UpdatedAt      time.Time `json:"updated_at"`
 }
 
 // TransferHistoryEntry is a redacted, local audit record. It never contains a
@@ -462,6 +464,16 @@ func normalizeSession(session SessionProfile) (SessionProfile, error) {
 	}
 	if _, resolveErr := permissions.Resolve(session.Permissions, "", ""); resolveErr != nil {
 		return SessionProfile{}, resolveErr
+	}
+	if session.Authentication == "" {
+		session.Authentication = sshclient.AuthenticationKey
+	}
+	if session.Authentication != sshclient.AuthenticationKey && session.Authentication != sshclient.AuthenticationPassword {
+		return SessionProfile{}, verrors.New(verrors.CodeInvalidArguments,
+			fmt.Sprintf("unsupported SSH authentication method %q", session.Authentication))
+	}
+	if session.Authentication == sshclient.AuthenticationPassword {
+		session.Identity = ""
 	}
 	return session, nil
 }

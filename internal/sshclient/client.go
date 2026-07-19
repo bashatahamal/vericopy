@@ -25,10 +25,19 @@ type Options struct {
 	Port            int
 	KnownHosts      string
 	Identity        string
+	Authentication  string
+	Password        string
 	Timeout         time.Duration
 	HostKeyCallback ssh.HostKeyCallback
 	DialContext     func(context.Context, string, string) (net.Conn, error)
 }
+
+const (
+	// AuthenticationKey uses the SSH agent or a private-key file.
+	AuthenticationKey = "key"
+	// AuthenticationPassword uses a one-time password supplied by the caller.
+	AuthenticationPassword = "password"
+)
 
 // Client owns an authenticated SSH connection.
 type Client struct {
@@ -67,7 +76,9 @@ func NewHostKeyCallback(filename string) (ssh.HostKeyCallback, error) {
 	}, nil
 }
 
-// Dial opens a context-aware SSH connection with agent or private-key auth.
+// Dial opens a context-aware SSH connection with explicit authentication and
+// strict host-key verification. Passwords are used only during the handshake;
+// callers remain responsible for keeping them out of persisted state and logs.
 func Dial(ctx context.Context, options Options) (*Client, error) {
 	if options.Port == 0 {
 		options.Port = 22
@@ -86,15 +97,13 @@ func Dial(ctx context.Context, options Options) (*Client, error) {
 			return nil, err
 		}
 	}
-	authMethods, cleanup, err := authenticationMethods(options.Identity)
+	authMethods, cleanup, err := authenticationMethods(options.Authentication, options.Identity, options.Password)
 	if err != nil {
 		return nil, err
 	}
 	defer cleanup()
 	if len(authMethods) == 0 {
-		return nil, verrors.New(verrors.CodeAuthenticationFailed,
-			"no SSH agent or readable private key was available").WithHint(
-			"Start an SSH agent with a loaded key, or pass --identity PATH.")
+		return nil, verrors.New(verrors.CodeAuthenticationFailed, "no SSH authentication method was available")
 	}
 
 	configuration := &ssh.ClientConfig{
@@ -123,7 +132,22 @@ func Dial(ctx context.Context, options Options) (*Client, error) {
 	return &Client{Client: ssh.NewClient(clientConnection, channels, requests)}, nil
 }
 
-func authenticationMethods(identity string) ([]ssh.AuthMethod, func(), error) {
+func authenticationMethods(authentication, identity, password string) ([]ssh.AuthMethod, func(), error) {
+	if authentication == "" {
+		authentication = AuthenticationKey
+	}
+	if authentication == AuthenticationPassword {
+		if password == "" {
+			return nil, func() {}, verrors.New(verrors.CodeAuthenticationFailed,
+				"an SSH password is required for password authentication")
+		}
+		return []ssh.AuthMethod{ssh.Password(password)}, func() {}, nil
+	}
+	if authentication != AuthenticationKey {
+		return nil, func() {}, verrors.New(verrors.CodeInvalidArguments,
+			fmt.Sprintf("unsupported SSH authentication method %q", authentication))
+	}
+
 	methods := make([]ssh.AuthMethod, 0, 2)
 	closers := make([]func(), 0, 1)
 	if socket := os.Getenv("SSH_AUTH_SOCK"); socket != "" {

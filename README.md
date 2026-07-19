@@ -14,7 +14,8 @@ Vericopy is a native desktop application backed by a Go transfer engine. Its
 CLI remains available for automation and expert workflows. The desktop app does
 not require a hosted service: transfers run from the user's machine, use the
 local SSH agent or explicitly selected key, and retain strict `known_hosts`
-verification.
+verification. The desktop app can also use a one-time SSH password without
+adding it to saved sessions, history, or logs.
 
 ## Desktop application
 
@@ -29,7 +30,9 @@ strict host-key prerequisites, transfer review, verified SFTP execution, and a
 clear result state. It also has local saved sessions, truthful per-file byte
 progress, and redacted local transfer history. Sessions persist complete form
 state, including source and identity-key paths, but never passwords or key
-contents. Native acceptance
+contents. A built-in Help view explains connection setup, authentication, host
+identity, and the verified-transfer sequence. Its task-first editorial interface
+uses bundled offline fonts for consistent rendering across platforms. Native acceptance
 and signed packaging remain release gates; see the [desktop UI plan](docs/desktop-ui.md)
 and [desktop acceptance checklist](docs/desktop-acceptance.md).
 
@@ -44,7 +47,8 @@ and [desktop acceptance checklist](docs/desktop-acceptance.md).
 - Applies explicit POSIX destination permissions instead of copying synthetic
   Windows or Cygwin mode bits.
 - Checks whether a service account can traverse and read the final destination.
-- Never accepts a password in process arguments and sends no telemetry.
+- Never accepts a password in process arguments, never persists a desktop
+  password, and sends no telemetry.
 
 ## Short demonstration
 

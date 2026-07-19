@@ -8,6 +8,8 @@ a `reports` folder. Never use production credentials or irreplaceable files.
 
 - [ ] Verify the host fingerprint independently and add it to `known_hosts`.
 - [ ] Load a test key into the SSH agent, or prepare a selected test key path.
+- [ ] Prepare a disposable password-enabled SSH account for the one-time
+  password scenario; never use production credentials.
 - [ ] Create a destination owned by the explicit test SSH account.
 - [ ] Use a source file and folder containing spaces and Unicode characters.
 - [ ] Confirm that the destination does not contain an existing file unless
@@ -26,6 +28,12 @@ a `reports` folder. Never use production credentials or irreplaceable files.
 - [ ] Interrupt a large test transfer, then resume it and verify the final
   SHA-256 result.
 - [ ] Confirm an unknown or changed host key stops before any transfer bytes.
+- [ ] Complete a password-authenticated transfer, then confirm the password is
+  absent from the saved session file, history, visible form, and diagnostics.
+- [ ] Save and reload a password-mode session; confirm the method returns but
+  the password field is empty and requires a new entry.
+- [ ] Use the Help view and contextual Connection help action with keyboard-only
+  navigation.
 - [ ] Confirm the local history redacts full source and remote paths, then
   clear it.
 

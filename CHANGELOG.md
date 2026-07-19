@@ -42,5 +42,12 @@ Changelog, and releases follow Semantic Versioning.
   accessible navigation state, and system-consistent transfer controls.
 - A redesigned compact desktop dashboard and Go-persisted saved sessions that
   retain complete transfer form state independently of WebView storage.
+- Explicit desktop authentication selection with recommended SSH key/agent
+  mode and non-persistent, one-time SSH password mode.
+- Contextual connection guidance and an in-app Help view covering quick start,
+  host verification, authentication choices, and credential handling.
+- A task-first desktop redesign with bundled Source Serif 4 and IBM Plex fonts,
+  a verification-led dashboard, quieter readiness state, numbered transfer
+  sequence, and row-based local records.
 
 [Unreleased]: https://github.com/bashatahamal/vericopy/compare/v0.1.0...HEAD

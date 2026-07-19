@@ -19,15 +19,15 @@ status detail, never as a primary action color.
 
 | Role | Light | Dark | Use |
 | --- | --- | --- | --- |
-| Ground | `#faf9f7` | `#191917` | Documentation and banner background |
-| Surface | `#ffffff` | `#21201d` | Terminal and card surfaces |
-| Ink | `#1d1c1a` | `#e9e6df` | Primary text |
-| Soft ink | `#52504b` | `#b3afa5` | Secondary text |
-| Faint ink | `#8a877f` | `#7d7a71` | Nonessential metadata only |
-| Accent | `#0e6e55` | `#4aa88c` | Verified state and identity period |
-| Accent ink | `#0a5a46` | `#63bda2` | Links and readable accent text |
-| Gold detail | `#a16f0b` | `#c9993f` | Hairlines, section numbers, small details |
-| Border | `#e6e3dc` | `#34322d` | Quiet separation |
+| Ground | `#f6f3ed` | `#171714` | Desktop workspace background |
+| Surface | `#fbfaf7` | `#1d1d19` | Review and instructional surfaces |
+| Ink | `#1c1a17` | `#eeeae1` | Primary text |
+| Soft ink | `#555149` | `#beb8ad` | Secondary text |
+| Faint ink | `#7b756b` | `#878177` | Nonessential metadata only |
+| Accent | `#0b6b52` | `#55b394` | Verified state and primary action |
+| Accent deep | `#084c3b` | `#174c3d` | Trust statement and primary hover |
+| Gold detail | `#9b6815` | `#d1a04c` | Section numbers and structural detail |
+| Border | `#dcd6ca` | `#393830` | Quiet separation |
 
 The primary light theme combinations use near-black or deep green on warm
 off-white. Gold is not used for body copy because it is a detail color, not a
@@ -36,14 +36,14 @@ site and must be retested in the exact surface.
 
 ## Typography
 
-- Headings and editorial prose: Charter when licensed assets are intentionally
-  distributed, otherwise Georgia and the documented serif fallback stack.
-- Command chrome and controls: the platform system sans stack.
-- Paths, checksums, versions, tags, dates, modes, and status labels: the platform
-  monospace stack.
+- Headings and product voice: bundled Source Serif 4 variable.
+- Interface text and controls: bundled IBM Plex Sans variable.
+- Paths, checksums, versions, ports, dates, modes, and technical status: bundled
+  IBM Plex Mono regular.
 
-The repository banner uses fallbacks only and embeds no font file. This keeps the
-asset portable and avoids transferring reference assets unnecessarily.
+The desktop fonts are bundled under the SIL Open Font License so the native
+application keeps a stable offline identity across operating systems. The
+repository banner remains portable and uses fallback fonts only.
 
 ## Desktop application
 
@@ -54,9 +54,16 @@ not an opaque progress gadget. Host identity, source and destination paths,
 policy, byte count, checksum, and next action stay legible at every state.
 
 The primary action remains green only when the request is locally valid. Red or
-gold status always has accompanying plain-language text. The initial UI avoids
-decorative gradients, excessive motion, and password fields; it relies on the
-SSH agent or an explicitly selected key path.
+gold status always has accompanying plain-language text. The UI avoids
+decorative gradients and excessive motion. Authentication is a visible choice:
+recommended SSH key/agent authentication or a clearly labeled one-time password
+that is never persisted by Vericopy.
+
+The composition avoids generic dashboard conventions. Each view has one clear
+focal task; readiness is a secondary preflight strip; working records use rows
+instead of repeated cards; and the transfer form reads as a numbered sequence.
+Monospace is reserved for technical facts rather than used as an all-purpose
+visual texture.
 
 ## CLI behavior
 
@@ -71,7 +78,7 @@ headings, concrete paths, lower-noise status lines, and a direct `Next:` remedy.
 
 ## Motion and shape
 
-Static repository assets use flat token colors, a 6 px corner radius, 1 px
+Static repository assets use flat token colors, a 4 px corner radius, 1 px
 hairlines, and no decorative gradients. An optional documentation site would
 use near-zero motion, short hover transitions, and a full
 `prefers-reduced-motion` opt-out.
@@ -89,6 +96,8 @@ use near-zero motion, short hover transitions, and a full
 
 - `docs/assets/vericopy-banner.svg`: original project banner built from the
   derived token system and system font fallbacks.
+- `cmd/vericopy-desktop/frontend/dist/fonts/`: unmodified Source Serif 4 and IBM
+  Plex desktop font files, provenance hashes, and SIL Open Font licenses.
 - Mermaid diagrams: use the same warm ground, green border, neutral ink, and
   gold detail roles.
 

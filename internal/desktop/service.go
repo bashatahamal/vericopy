@@ -96,21 +96,24 @@ func (s *Service) GetDashboard() Dashboard {
 	}
 }
 
-// TransferRequest is the desktop equivalent of an explicit copy command. It
-// contains paths and policy references only; it never accepts a password.
+// TransferRequest is the desktop equivalent of an explicit copy command.
+// Password is accepted only for a live password-authenticated transfer. It is
+// excluded from reviews, saved sessions, history, progress, and diagnostics.
 type TransferRequest struct {
-	Source       string `json:"source"`
-	Destination  string `json:"destination"`
-	Identity     string `json:"identity,omitempty"`
-	KnownHosts   string `json:"known_hosts,omitempty"`
-	Port         int    `json:"port"`
-	Permissions  string `json:"permissions,omitempty"`
-	Group        string `json:"group,omitempty"`
-	ReadableBy   string `json:"readable_by,omitempty"`
-	Recursive    bool   `json:"recursive"`
-	Resume       bool   `json:"resume"`
-	Overwrite    bool   `json:"overwrite"`
-	PreserveTime bool   `json:"preserve_time"`
+	Source         string `json:"source"`
+	Destination    string `json:"destination"`
+	Authentication string `json:"authentication,omitempty"`
+	Password       string `json:"password,omitempty"`
+	Identity       string `json:"identity,omitempty"`
+	KnownHosts     string `json:"known_hosts,omitempty"`
+	Port           int    `json:"port"`
+	Permissions    string `json:"permissions,omitempty"`
+	Group          string `json:"group,omitempty"`
+	ReadableBy     string `json:"readable_by,omitempty"`
+	Recursive      bool   `json:"recursive"`
+	Resume         bool   `json:"resume"`
+	Overwrite      bool   `json:"overwrite"`
+	PreserveTime   bool   `json:"preserve_time"`
 }
 
 // SourceSummary is the source information shown before any remote connection.
@@ -132,14 +135,15 @@ type DestinationSummary struct {
 // TransferReview is a locally validated transfer plan. Review never dials SSH
 // or writes a destination.
 type TransferReview struct {
-	Source       SourceSummary      `json:"source"`
-	Destination  DestinationSummary `json:"destination"`
-	Permissions  string             `json:"permissions"`
-	KnownHosts   string             `json:"known_hosts"`
-	Resume       bool               `json:"resume"`
-	Overwrite    bool               `json:"overwrite"`
-	PreserveTime bool               `json:"preserve_time"`
-	ReadableBy   string             `json:"readable_by,omitempty"`
+	Source         SourceSummary      `json:"source"`
+	Destination    DestinationSummary `json:"destination"`
+	Authentication string             `json:"authentication"`
+	Permissions    string             `json:"permissions"`
+	KnownHosts     string             `json:"known_hosts"`
+	Resume         bool               `json:"resume"`
+	Overwrite      bool               `json:"overwrite"`
+	PreserveTime   bool               `json:"preserve_time"`
+	ReadableBy     string             `json:"readable_by,omitempty"`
 }
 
 // TransferResult combines the machine-readable engine result with the concise
@@ -191,6 +195,19 @@ func prepare(request TransferRequest) (preparedTransfer, error) {
 	if request.Permissions == "" {
 		request.Permissions = "private"
 	}
+	if request.Authentication == "" {
+		request.Authentication = sshclient.AuthenticationKey
+	}
+	switch request.Authentication {
+	case sshclient.AuthenticationKey:
+		request.Password = ""
+	case sshclient.AuthenticationPassword:
+		request.Identity = ""
+		request.Password = ""
+	default:
+		return preparedTransfer{}, verrors.New(verrors.CodeInvalidArguments,
+			fmt.Sprintf("unsupported SSH authentication method %q", request.Authentication))
+	}
 
 	source, err := localpath.ResolveForRuntime(request.Source)
 	if err != nil {
@@ -233,8 +250,8 @@ func prepare(request TransferRequest) (preparedTransfer, error) {
 		Source: SourceSummary{
 			Path: source, Kind: string(localpath.KindRelative), Size: sourceInfo.Size(), IsDirectory: sourceInfo.IsDir(),
 		},
-		Destination: DestinationSummary{User: destination.User, Host: destination.Host, Path: destination.Path, Port: request.Port},
-		Permissions: request.Permissions, KnownHosts: request.KnownHosts, Resume: request.Resume,
+		Destination:    DestinationSummary{User: destination.User, Host: destination.Host, Path: destination.Path, Port: request.Port},
+		Authentication: request.Authentication, Permissions: request.Permissions, KnownHosts: request.KnownHosts, Resume: request.Resume,
 		Overwrite: request.Overwrite, PreserveTime: request.PreserveTime, ReadableBy: request.ReadableBy,
 	}
 	info, inspectErr := localpath.Inspect(request.Source, "")
@@ -247,9 +264,15 @@ func prepare(request TransferRequest) (preparedTransfer, error) {
 // StartTransfer executes the previously reviewable operation through the same
 // strict SSH and native SFTP implementation used by the CLI.
 func (s *Service) StartTransfer(request TransferRequest) (transfer.Result, error) {
+	password := request.Password
+	request.Password = ""
 	prepared, err := prepare(request)
 	if err != nil {
 		return transfer.Result{}, err
+	}
+	if prepared.request.Authentication == sshclient.AuthenticationPassword && password == "" {
+		return transfer.Result{}, verrors.New(verrors.CodeAuthenticationFailed,
+			"enter the SSH password before starting the transfer")
 	}
 	startedAt := time.Now().UTC()
 	s.emitProgress(TransferProgress{Phase: "connecting", FileName: filepath.Base(prepared.source), Message: "Connecting with strict host verification"})
@@ -261,8 +284,10 @@ func (s *Service) StartTransfer(request TransferRequest) (transfer.Result, error
 
 	sshConnection, err := sshclient.Dial(ctx, sshclient.Options{
 		User: prepared.destination.User, Host: prepared.destination.Host, Port: prepared.request.Port,
-		KnownHosts: prepared.request.KnownHosts, Identity: prepared.request.Identity, Timeout: 15 * time.Second,
+		KnownHosts: prepared.request.KnownHosts, Identity: prepared.request.Identity,
+		Authentication: prepared.request.Authentication, Password: password, Timeout: 15 * time.Second,
 	})
+	password = ""
 	if err != nil {
 		return s.completeTransfer(prepared, startedAt, transfer.Result{}, err)
 	}

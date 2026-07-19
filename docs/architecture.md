@@ -25,7 +25,7 @@ flowchart TB
     CLI["CLI layer<br>Cobra commands and stable output"]
     Parse["Input boundary<br>local paths, remote specs, modes"]
     Policy["Policy layer<br>overwrite, permissions, diagnostics"]
-    SSH["SSH boundary<br>agent or key, strict known_hosts"]
+    SSH["SSH boundary<br>key, agent, or one-time password<br>strict known_hosts"]
     Engine["Transfer engine<br>partial state, resume, SHA-256"]
     SFTP["Native SFTP adapter<br>files and metadata"]
     Access["Access checker<br>validated account lookup and SFTP stat"]

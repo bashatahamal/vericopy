@@ -3,7 +3,7 @@
 This is the living record of what Vericopy is building, what is complete, and
 what comes next. Update it with every meaningful product or release change.
 
-Last updated: 2026-07-18
+Last updated: 2026-07-19
 
 ## Product vision
 
@@ -67,6 +67,12 @@ milestone becomes complete only when its acceptance signal is verified.
 - [x] Replace the desktop frontend with the reviewed compact dashboard design
   and move complete saved sessions from WebView storage into the atomic Go
   state store.
+- [x] Add explicit key/agent and one-time password authentication choices,
+  keeping passwords out of saved sessions, reviews, history, progress, and
+  logs, with contextual guidance and a dedicated Help view.
+- [x] Replace the compact utility composition with a task-first editorial
+  workspace, bundled offline fonts, a verification-led dashboard, numbered
+  transfer stages, and lower-noise record views.
 - [x] Repair the Windows path, OpenSSH integration, and Go patch-level CI
   failures; all GitHub pull-request checks now pass.
 - [ ] Create and verify the first release tag.
@@ -143,8 +149,12 @@ Verified on 2026-07-17 with Go 1.26.5 on Linux/amd64:
 | GoReleaser 2.15.4 configuration check | Pass with temporary local remote metadata |
 | Banner SVG render and visual inspection | Pass |
 | Saved-session state tests | Pass on 2026-07-18: save, reload through a fresh service, upsert, delete, path persistence, and invalid input cases |
+| Desktop authentication tests | Pass on 2026-07-19: explicit method selection, required one-time password, no public-key fallback in password mode, review exclusion, and invalid-method rejection |
+| Desktop redesign browser checks | Pass on 2026-07-19: bundled fonts load, IDs and form labels are valid, password lifecycle remains isolated, session and history states render, and light, dark, compact, review, and authentication views pass visual inspection |
 | `make desktop-build` | Pass on 2026-07-18 with the Windows Go toolchain |
 | Windows Wails production build | Pass on 2026-07-18: redesigned assets, regenerated session bindings, and embedded WebView2 built and launched `vericopy-desktop-sessions.exe`; full transfer acceptance remains pending |
+| Windows password/help Wails build | Pass on 2026-07-19: regenerated authentication bindings and compiled embedded WebView2 production executable; native password transfer acceptance remains pending |
+| Windows editorial-redesign Wails build | Pass on 2026-07-19: bundled fonts, regenerated bindings, embedded assets, and production compilation completed; artifact SHA-256 `0c4b5488868e0540fc05ccd3f53974869bb103ff0bd10b46168154b4d02a35e5` |
 | `git diff --check` and public-text sweep | Pass |
 | GitHub Actions pull-request checks | Pass: Ubuntu, macOS, Windows, race, OpenSSH, static/vulnerability, cross-build, and CodeQL |
 | Direct host race detector | Not available: cgo and a C compiler are absent |
@@ -186,6 +196,7 @@ is affected.
 | 2026-07-17 | Verify containers with Podman when Docker Desktop WSL is unavailable | The scripts retain Docker defaults and allow an equivalent local runtime. |
 | 2026-07-18 | Keep profiles and history local and redacted | Connection references are useful convenience data; source paths, key paths, full remote paths, and digests are not needed for the history view. |
 | 2026-07-18 | Persist complete saved sessions in the Go state store | Sessions intentionally retain source and identity-key paths for convenience; legacy profiles remain path-free for migration and history remains redacted. |
+| 2026-07-19 | Offer one-time desktop password authentication without persistence | Password mode lowers the setup barrier while strict host verification, explicit method choice, and non-persistence preserve the security boundary. |
 | 2026-07-18 | Protect mainline and release references in GitHub | All current CI checks gate `main`; release tags can be created once but not moved or deleted. |
 
 ## Update protocol

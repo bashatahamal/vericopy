@@ -17,6 +17,12 @@ const els = {
   destination: $("#destination"),
   port: $("#port"),
   permissions: $("#permissions"),
+  authRadios: [...document.querySelectorAll('input[name="authentication"]')],
+  authOptions: [...document.querySelectorAll(".auth-option")],
+  keyAuthPanel: $("#key-auth-panel"),
+  passwordAuthPanel: $("#password-auth-panel"),
+  password: $("#password"),
+  togglePassword: $("#toggle-password"),
   identity: $("#identity"),
   knownHosts: $("#known-hosts"),
   group: $("#group"),
@@ -44,6 +50,7 @@ const els = {
   reviewPanel: $("#review-panel"),
   reviewTitle: $("#review-title"),
   reviewList: $("#review-list"),
+  reviewSecurity: $("#review-security"),
   progressPanel: $("#progress-panel"),
   progressPhase: $("#progress-phase"),
   progressDetail: $("#progress-detail"),
@@ -115,12 +122,14 @@ function setNotice(message, kind = "") {
 /* ---------- form <-> data ---------- */
 
 function requestFromForm() {
+  const authentication = els.authRadios.find((radio) => radio.checked)?.value || "key";
   return {
     source: els.source.value.trim(),
     destination: els.destination.value.trim(),
     port: Number(els.port.value || 22),
     permissions: els.permissions.value,
-    identity: els.identity.value.trim(),
+    authentication,
+    identity: authentication === "key" ? els.identity.value.trim() : "",
     known_hosts: els.knownHosts.value.trim(),
     group: els.group.value.trim(),
     readable_by: els.readableBy.value.trim(),
@@ -131,10 +140,26 @@ function requestFromForm() {
   };
 }
 
+function setAuthentication(authentication, clearPassword = true) {
+  const method = authentication === "password" ? "password" : "key";
+  els.authRadios.forEach((radio) => { radio.checked = radio.value === method; });
+  els.authOptions.forEach((option) => {
+    option.classList.toggle("is-selected", option.querySelector("input")?.value === method);
+  });
+  els.keyAuthPanel.hidden = method !== "key";
+  els.passwordAuthPanel.hidden = method !== "password";
+  if (method !== "password" && clearPassword) {
+    els.password.value = "";
+    els.password.type = "password";
+    els.togglePassword.textContent = "Show";
+    els.togglePassword.setAttribute("aria-pressed", "false");
+  }
+}
+
 function setAdvancedOpen(open) {
   els.advanced.hidden = !open;
   els.advancedToggle.setAttribute("aria-expanded", String(open));
-  els.advancedToggle.innerHTML = open ? "Advanced &#9652;" : "Advanced &#9662;";
+  els.advancedToggle.innerHTML = open ? "Advanced options &#9652;" : "Advanced options &#9662;";
 }
 
 /* ---------- sessions (full form, local to this computer) ---------- */
@@ -156,6 +181,7 @@ function applySession(session) {
   els.destination.value = session.destination || "";
   els.port.value = session.port || "";
   els.permissions.value = session.permissions || "private";
+  setAuthentication(session.authentication || "key");
   els.identity.value = session.identity || "";
   els.knownHosts.value = session.known_hosts || "";
   els.group.value = session.group || "";
@@ -166,7 +192,7 @@ function applySession(session) {
   els.preserveTime.checked = !!session.preserve_time;
   els.sessionName.value = session.name;
   selectedSession = session.name;
-  setAdvancedOpen(!!(session.identity || session.known_hosts || session.group || session.readable_by));
+  setAdvancedOpen(!!(session.known_hosts || session.group || session.readable_by));
   invalidateReview();
   renderSessions();
   setNotice(`Loaded "${session.name}".`, "success");
@@ -259,6 +285,7 @@ async function migrateProfilesOnce() {
         destination: profile.destination,
         port: profile.port,
         permissions: "private",
+        authentication: "key",
         identity: "",
         known_hosts: profile.known_hosts || "",
         group: "",
@@ -299,6 +326,7 @@ function displayReview(review) {
   addReviewRow("Type", review.source.is_directory ? "Directory tree" : "Regular file");
   addReviewRow("Destination", `${review.destination.user}@${review.destination.host}:${review.destination.path}`);
   addReviewRow("Port", String(review.destination.port));
+  addReviewRow("Authentication", review.authentication === "password" ? "One-time SSH password" : "SSH key or agent");
   addReviewRow("Policy", review.permissions);
   addReviewRow("known_hosts", review.known_hosts);
   const options = [
@@ -309,6 +337,9 @@ function displayReview(review) {
   addReviewRow("Options", options);
   if (review.readable_by) addReviewRow("Access check", `read as ${review.readable_by}`);
   els.reviewPanel.hidden = false;
+  els.reviewSecurity.textContent = review.authentication === "password"
+    ? "strict known_hosts · one-time password · sha-256 readback"
+    : "strict known_hosts · key authentication · sha-256 readback";
   els.reviewTitle.textContent = "Ready · no connection opened yet";
   els.startButton.disabled = false;
 }
@@ -325,6 +356,11 @@ async function reviewTransfer() {
   const request = requestFromForm();
   if (!request.source) { setNotice("Source is required.", "error"); els.source.focus(); return; }
   if (!request.destination) { setNotice("Destination is required.", "error"); els.destination.focus(); return; }
+  if (request.authentication === "password" && !els.password.value) {
+    setNotice("Enter the SSH password for this connection.", "error");
+    els.password.focus();
+    return;
+  }
   els.reviewButton.disabled = true;
   setNotice("Reviewing locally. No connection opened.");
   try {
@@ -380,13 +416,28 @@ function displayProgress(update) {
 
 async function startTransfer() {
   if (!reviewedRequest) return;
+  const password = reviewedRequest.authentication === "password" ? els.password.value : "";
+  if (reviewedRequest.authentication === "password" && !password) {
+    setNotice("Enter the SSH password, then review the transfer again.", "error");
+    els.password.focus();
+    return;
+  }
   els.startButton.disabled = true;
   els.cancelButton.hidden = false;
   els.reviewTitle.textContent = "Transferring";
   displayProgress({ phase: "connecting" });
   setNotice("");
   try {
-    const outcome = await invoke("StartTransfer", reviewedRequest);
+    const liveRequest = { ...reviewedRequest, password };
+    const transfer = invoke("StartTransfer", liveRequest);
+    liveRequest.password = "";
+    if (reviewedRequest.authentication === "password") {
+      els.password.value = "";
+      els.password.type = "password";
+      els.togglePassword.textContent = "Show";
+      els.togglePassword.setAttribute("aria-pressed", "false");
+    }
+    const outcome = await transfer;
     els.reviewTitle.textContent = "Transfer verified";
     els.progressBar.classList.remove("is-indeterminate");
     els.progressFill.style.width = "100%";
@@ -499,6 +550,7 @@ function subscribeToProgress() {
 els.tabs.forEach((button) => button.addEventListener("click", () => showView(button.dataset.view)));
 document.querySelectorAll("[data-open-transfer]").forEach((button) => button.addEventListener("click", () => showView("transfer")));
 document.querySelectorAll("[data-open-activity]").forEach((button) => button.addEventListener("click", () => showView("activity")));
+document.querySelectorAll("[data-open-help]").forEach((button) => button.addEventListener("click", () => showView("help")));
 els.form.addEventListener("submit", (event) => { event.preventDefault(); reviewTransfer(); });
 els.startButton.addEventListener("click", startTransfer);
 els.cancelButton.addEventListener("click", async () => {
@@ -513,10 +565,20 @@ els.advancedToggle.addEventListener("click", () => setAdvancedOpen(els.advanced.
 els.saveSession.addEventListener("click", saveSession);
 els.clearHistory.addEventListener("click", clearHistory);
 els.themeToggle.addEventListener("click", () => setTheme(activeTheme() === "dark" ? "light" : "dark"));
+els.authRadios.forEach((radio) => radio.addEventListener("change", () => {
+  setAuthentication(radio.value);
+  invalidateReview();
+}));
+els.togglePassword.addEventListener("click", () => {
+  const reveal = els.password.type === "password";
+  els.password.type = reveal ? "text" : "password";
+  els.togglePassword.textContent = reveal ? "Hide" : "Show";
+  els.togglePassword.setAttribute("aria-pressed", String(reveal));
+});
 $("#choose-file").addEventListener("click", () => choose("SelectSourceFile", els.source));
 $("#choose-folder").addEventListener("click", () => choose("SelectSourceDirectory", els.source, true));
 $("#choose-identity").addEventListener("click", () => choose("SelectIdentityFile", els.identity));
-[els.source, els.destination, els.port, els.permissions, els.identity, els.knownHosts, els.group, els.readableBy,
+[els.source, els.destination, els.port, els.permissions, els.password, els.identity, els.knownHosts, els.group, els.readableBy,
  els.recursive, els.resume, els.overwrite, els.preserveTime].forEach((field) => {
   field.addEventListener("input", invalidateReview);
   field.addEventListener("change", invalidateReview);

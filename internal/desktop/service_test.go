@@ -1,8 +1,10 @@
 package desktop_test
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/bashatahamal/vericopy/internal/desktop"
@@ -25,6 +27,55 @@ func TestReviewTransferUsesExplicitDesktopContract(t *testing.T) {
 	}
 	if review.Permissions != "service-readonly" || !review.Resume {
 		t.Fatalf("policy was not retained: %#v", review)
+	}
+	if review.Authentication != "key" {
+		t.Fatalf("default authentication was not retained: %#v", review)
+	}
+}
+
+func TestReviewTransferAcceptsPasswordModeWithoutRetainingASecret(t *testing.T) {
+	source := filepath.Join(t.TempDir(), "annual-report.pdf")
+	if err := os.WriteFile(source, []byte("report"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	review, err := desktop.NewService().ReviewTransfer(desktop.TransferRequest{
+		Source: source, Destination: "transfer@example.com:/srv/shared/annual-report.pdf",
+		Authentication: "password", Password: "must-not-appear-in-review",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if review.Authentication != "password" {
+		t.Fatalf("password authentication was not retained: %#v", review)
+	}
+	if strings.Contains(fmt.Sprintf("%#v", review), "must-not-appear-in-review") {
+		t.Fatalf("password leaked into transfer review: %#v", review)
+	}
+}
+
+func TestReviewTransferRejectsUnknownAuthentication(t *testing.T) {
+	source := filepath.Join(t.TempDir(), "annual-report.pdf")
+	if err := os.WriteFile(source, []byte("report"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	_, err := desktop.NewService().ReviewTransfer(desktop.TransferRequest{
+		Source: source, Destination: "transfer@example.com:/srv/shared/annual-report.pdf", Authentication: "magic",
+	})
+	if err == nil || verrors.As(err).Code != verrors.CodeInvalidArguments {
+		t.Fatalf("unknown authentication was accepted: %v", err)
+	}
+}
+
+func TestStartTransferRequiresPasswordBeforeConnecting(t *testing.T) {
+	source := filepath.Join(t.TempDir(), "annual-report.pdf")
+	if err := os.WriteFile(source, []byte("report"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	_, err := desktop.NewService().StartTransfer(desktop.TransferRequest{
+		Source: source, Destination: "transfer@example.com:/srv/shared/annual-report.pdf", Authentication: "password",
+	})
+	if err == nil || verrors.As(err).Code != verrors.CodeAuthenticationFailed {
+		t.Fatalf("password mode connected without a password: %v", err)
 	}
 }
 
