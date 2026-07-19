@@ -1,6 +1,6 @@
 // Package desktop exposes the desktop application's safe, UI-oriented service
 // boundary. It deliberately shares the parsing, SSH, SFTP, transfer, and
-// verification packages used by the CLI.
+// verification packages used by the supporting command adapter.
 package desktop
 
 import (
@@ -33,6 +33,14 @@ type Service struct {
 	state        *StateStore
 	progress     func(TransferProgress)
 	lastProgress time.Time
+	jobs         map[string]*runtimeJob
+	jobOrder     []string
+	runningJobs  int
+	maxJobs      int
+	jobProgress  map[string]time.Time
+	jobWG        sync.WaitGroup
+	executor     transferExecutor
+	closed       bool
 }
 
 // NewService creates the desktop service boundary.
@@ -48,7 +56,12 @@ func NewService() *Service {
 // state path. It is useful for isolated desktop tests and does not change any
 // transfer security behavior.
 func NewServiceWithStatePath(statePath string) *Service {
-	return &Service{root: context.Background(), state: newStateStore(statePath)}
+	service := &Service{
+		root: context.Background(), state: newStateStore(statePath), jobs: make(map[string]*runtimeJob),
+		maxJobs: defaultConcurrentJobs, jobProgress: make(map[string]time.Time),
+	}
+	service.restoreJobs()
+	return service
 }
 
 // SetContext connects the service lifetime to the native application lifetime.
@@ -74,6 +87,8 @@ type Dashboard struct {
 	StrictHostKeysReady bool   `json:"strict_host_keys_ready"`
 	SSHAgentAvailable   bool   `json:"ssh_agent_available"`
 	TransferActive      bool   `json:"transfer_active"`
+	RunningTransfers    int    `json:"running_transfers"`
+	QueuedTransfers     int    `json:"queued_transfers"`
 }
 
 // GetDashboard returns current desktop readiness without opening a connection.
@@ -82,7 +97,8 @@ func (s *Service) GetDashboard() Dashboard {
 	_, knownHostsErr := sshclient.NewHostKeyCallback(knownHosts)
 
 	s.mu.Lock()
-	active := s.active
+	running, queued := s.runningJobs, s.queuedJobsLocked()
+	active := s.active || running > 0 || queued > 0
 	s.mu.Unlock()
 
 	build := version.Current()
@@ -93,6 +109,8 @@ func (s *Service) GetDashboard() Dashboard {
 		StrictHostKeysReady: knownHostsErr == nil,
 		SSHAgentAvailable:   os.Getenv("SSH_AUTH_SOCK") != "",
 		TransferActive:      active,
+		RunningTransfers:    running,
+		QueuedTransfers:     queued,
 	}
 }
 
@@ -156,6 +174,7 @@ type TransferResult struct {
 // TransferProgress is a per-file update for the desktop UI. Directory
 // transfers intentionally report the active file, not an invented total.
 type TransferProgress struct {
+	JobID            string `json:"job_id,omitempty"`
 	Phase            string `json:"phase"`
 	FileName         string `json:"file_name,omitempty"`
 	TransferredBytes int64  `json:"transferred_bytes,omitempty"`
@@ -262,7 +281,7 @@ func prepare(request TransferRequest) (preparedTransfer, error) {
 }
 
 // StartTransfer executes the previously reviewable operation through the same
-// strict SSH and native SFTP implementation used by the CLI.
+// strict SSH and native SFTP implementation used by every local interface.
 func (s *Service) StartTransfer(request TransferRequest) (transfer.Result, error) {
 	password := request.Password
 	request.Password = ""
@@ -282,6 +301,24 @@ func (s *Service) StartTransfer(request TransferRequest) (transfer.Result, error
 	}
 	defer finish()
 
+	result, transferErr := s.execute(ctx, prepared, password, s.transferProgress)
+	password = ""
+	return s.completeTransfer(prepared, startedAt, result, transferErr)
+}
+
+// execute performs one prepared transfer without owning queue or history state.
+// The queue and the compatibility StartTransfer method both use this boundary.
+func (s *Service) execute(ctx context.Context, prepared preparedTransfer, password string, progress func(transfer.Progress)) (transfer.Result, error) {
+	s.mu.Lock()
+	executor := s.executor
+	s.mu.Unlock()
+	if executor != nil {
+		return executor(ctx, prepared, password, progress)
+	}
+	return s.executePrepared(ctx, prepared, password, progress)
+}
+
+func (s *Service) executePrepared(ctx context.Context, prepared preparedTransfer, password string, progress func(transfer.Progress)) (transfer.Result, error) {
 	sshConnection, err := sshclient.Dial(ctx, sshclient.Options{
 		User: prepared.destination.User, Host: prepared.destination.Host, Port: prepared.request.Port,
 		KnownHosts: prepared.request.KnownHosts, Identity: prepared.request.Identity,
@@ -289,12 +326,12 @@ func (s *Service) StartTransfer(request TransferRequest) (transfer.Result, error
 	})
 	password = ""
 	if err != nil {
-		return s.completeTransfer(prepared, startedAt, transfer.Result{}, err)
+		return transfer.Result{}, err
 	}
 	defer sshConnection.Close()
 	remoteFS, err := nativesftp.New(sshConnection)
 	if err != nil {
-		return s.completeTransfer(prepared, startedAt, transfer.Result{}, verrors.Wrap(verrors.CodeConnectionFailed, "the server did not accept the SFTP subsystem", err))
+		return transfer.Result{}, verrors.Wrap(verrors.CodeConnectionFailed, "the server did not accept the SFTP subsystem", err)
 	}
 	defer remoteFS.Close()
 
@@ -303,7 +340,7 @@ func (s *Service) StartTransfer(request TransferRequest) (transfer.Result, error
 	if prepared.request.Group != "" {
 		resolved, resolveErr := resolver.Group(ctx, prepared.request.Group)
 		if resolveErr != nil {
-			return s.completeTransfer(prepared, startedAt, transfer.Result{}, resolveErr)
+			return transfer.Result{}, resolveErr
 		}
 		gid = &resolved
 	}
@@ -311,21 +348,21 @@ func (s *Service) StartTransfer(request TransferRequest) (transfer.Result, error
 	result, err := (transfer.Engine{Remote: remoteFS}).Copy(ctx, prepared.source, prepared.destination.Path, transfer.Options{
 		Recursive: prepared.request.Recursive, Resume: prepared.request.Resume,
 		Overwrite: prepared.request.Overwrite, PreserveTime: prepared.request.PreserveTime,
-		Policy: prepared.policy, GID: gid, Progress: s.transferProgress,
+		Policy: prepared.policy, GID: gid, Progress: progress,
 	})
 	if err != nil {
-		return s.completeTransfer(prepared, startedAt, result, err)
+		return result, err
 	}
 	if prepared.request.ReadableBy != "" {
 		identity, resolveErr := resolver.User(ctx, prepared.request.ReadableBy)
 		if resolveErr != nil {
-			return s.completeTransfer(prepared, startedAt, result, resolveErr)
+			return result, resolveErr
 		}
 		if _, checkErr := access.Check(ctx, remoteFS, result.Destination, identity); checkErr != nil {
-			return s.completeTransfer(prepared, startedAt, result, checkErr)
+			return result, checkErr
 		}
 	}
-	return s.completeTransfer(prepared, startedAt, result, nil)
+	return result, nil
 }
 
 // ListProfiles returns saved non-secret connection references.
@@ -426,7 +463,7 @@ func (s *Service) emitProgress(update TransferProgress) {
 func (s *Service) beginTransfer() (context.Context, func(), error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if s.active {
+	if s.active || s.runningJobs > 0 {
 		return nil, nil, verrors.New(verrors.CodeTransferFailed, "another transfer is already active")
 	}
 	root := s.root
@@ -458,7 +495,24 @@ func (s *Service) CancelTransfer() bool {
 
 // Close releases an active transfer when the desktop application shuts down.
 func (s *Service) Close() {
-	_ = s.CancelTransfer()
+	s.mu.Lock()
+	s.closed = true
+	legacyCancel := s.cancel
+	cancels := make([]context.CancelFunc, 0, len(s.jobs))
+	for _, job := range s.jobs {
+		job.password = ""
+		if job.cancel != nil {
+			cancels = append(cancels, job.cancel)
+		}
+	}
+	s.mu.Unlock()
+	if legacyCancel != nil {
+		legacyCancel()
+	}
+	for _, cancel := range cancels {
+		cancel()
+	}
+	s.jobWG.Wait()
 }
 
 // FormatResult is deliberately small so the UI does not have to reconstruct a

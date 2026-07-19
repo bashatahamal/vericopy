@@ -19,10 +19,34 @@ not a hosted service and does not send files through a Vericopy server.
 5. The app checks local prerequisites and presents advanced security and access
    settings without making them the primary workflow.
 6. A review screen shows the non-secret request before any connection opens.
-7. The app reports truthful per-file progress, verification, finalization, safe
-   cancellation, and a concrete result.
-8. Saved sessions can restore a setup. Redacted local activity records previous
+7. The reviewed request enters a bounded transfer queue. Up to two jobs run at
+   once while additional work waits in creation order.
+8. The Transfers view reports truthful per-job progress, verification,
+   finalization, cancellation, retry, removal, and concrete results.
+9. Saved sessions can restore a setup. Redacted local activity records previous
    outcomes. The Help view explains setup and security concepts in context.
+
+## Transfer manager and background behavior
+
+The transfer form creates jobs; it does not become a global progress screen.
+After queuing work, the user can immediately prepare another request. The
+Dashboard shows a compact queue summary and the Transfers view is the complete
+manager.
+
+Two jobs run concurrently by default. This bound prevents an accidental burst
+of SSH connections and keeps progress understandable. Queued jobs can be
+canceled before connection; running jobs receive context cancellation and keep
+compatible partial state for resume.
+
+Transfers continue while the native window is minimized because the local
+process remains alive. Closing the window while jobs are running or queued
+offers **Keep running**, which minimizes the window, or **Quit and stop**, which
+cancels active contexts and leaves recoverable non-secret job state. Vericopy
+does not install a permanent daemon or claim to continue after process exit.
+
+On restart, previously queued or running key/agent jobs become **Paused** and
+require an explicit retry. Password jobs become **Needs password**. They never
+resume silently and the secret is never restored from disk.
 
 ## Authentication
 
@@ -41,14 +65,16 @@ or changed server keys stop the request.
 
 ## Saved local data
 
-Saved sessions retain the form state needed to repeat a transfer, including
+Saved sessions and recoverable transfer-job setup retain the form state needed
+to repeat or retry a transfer, including
 source paths, destination details, identity-key paths, authentication choice,
 and transfer preferences. They never contain passwords, private-key contents,
 or key passphrases.
 
-Activity is deliberately less detailed. It excludes complete source and remote
-paths, identity paths, `known_hosts` paths, passwords, and content hashes.
-Deleting a session or activity record never deletes a source file or remote
+The transfer manager and activity views are deliberately less detailed. They
+expose source names and redacted destinations while excluding complete paths,
+identity paths, `known_hosts` paths, passwords, and content hashes. Deleting a
+session, job, or activity record never deletes a source file or remote
 destination.
 
 ## Visual system
@@ -76,14 +102,17 @@ application rather than reproducing a portfolio layout.
 - Existing destinations remain protected unless overwrite is explicitly chosen.
 - A successful state is shown only after remote size and SHA-256 match.
 - An interrupted or failed verification is never styled as completed.
+- Queued jobs never open a connection before a scheduler slot is available.
+- Restarted jobs never reconnect without an explicit user retry.
 - No security rule exists solely in frontend JavaScript.
 
 ## Technology boundary
 
 Wails provides the native window and local WebView. The frontend owns layout,
 accessible interaction, and ephemeral form presentation. Go owns validation,
-state persistence, SSH authentication, host verification, SFTP operations,
-permission policy, progress events, cancellation, and verification.
+state persistence, bounded scheduling, SSH authentication, host verification,
+SFTP operations, permission policy, per-job progress events, cancellation, and
+verification.
 
 Only the theme preference uses WebView storage. Saved sessions and activity use
 the atomic Go state store.

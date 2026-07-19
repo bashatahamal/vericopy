@@ -65,6 +65,10 @@ instead of repeated cards; and the transfer form reads as a numbered sequence.
 Monospace is reserved for technical facts rather than used as an all-purpose
 visual texture.
 
+The transfer manager follows the same restraint. Active, queued, paused, and
+finished jobs use one continuous record list with compact progress and actions;
+they do not become a grid of repeated download cards.
+
 ## Technical and diagnostic output
 
 The supporting command adapter is an engineering surface, not part of the

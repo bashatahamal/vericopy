@@ -21,7 +21,7 @@ import (
 )
 
 const (
-	stateSchema       = 1
+	stateSchema       = 2
 	maxHistoryEntries = 100
 )
 
@@ -80,6 +80,7 @@ type persistedState struct {
 	Schema   int                    `json:"schema"`
 	Profiles []ConnectionProfile    `json:"profiles"`
 	Sessions []SessionProfile       `json:"sessions"`
+	Jobs     []persistedTransferJob `json:"jobs,omitempty"`
 	History  []TransferHistoryEntry `json:"history"`
 }
 
@@ -305,6 +306,64 @@ func (s *StateStore) ClearTransferHistory() error {
 	return s.writeLocked(state)
 }
 
+func (s *StateStore) listTransferJobs() ([]persistedTransferJob, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	state, err := s.readLocked()
+	if err != nil {
+		return nil, err
+	}
+	jobs := append([]persistedTransferJob(nil), state.Jobs...)
+	sort.SliceStable(jobs, func(left, right int) bool {
+		return jobs[left].Job.CreatedAt.Before(jobs[right].Job.CreatedAt)
+	})
+	return jobs, nil
+}
+
+func (s *StateStore) saveTransferJob(record persistedTransferJob) error {
+	if record.Job.ID == "" {
+		return verrors.New(verrors.CodeInvalidArguments, "the transfer job identifier is empty")
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	state, err := s.readLocked()
+	if err != nil {
+		return err
+	}
+	updated := false
+	for index, existing := range state.Jobs {
+		if existing.Job.ID == record.Job.ID {
+			state.Jobs[index] = record
+			updated = true
+			break
+		}
+	}
+	if !updated {
+		state.Jobs = append(state.Jobs, record)
+	}
+	return s.writeLocked(state)
+}
+
+func (s *StateStore) deleteTransferJob(id string) error {
+	if id == "" {
+		return verrors.New(verrors.CodeInvalidArguments, "the transfer job identifier is empty")
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	state, err := s.readLocked()
+	if err != nil {
+		return err
+	}
+	jobs := state.Jobs[:0]
+	for _, record := range state.Jobs {
+		if record.Job.ID != id {
+			jobs = append(jobs, record)
+		}
+	}
+	state.Jobs = jobs
+	return s.writeLocked(state)
+}
+
 func (s *StateStore) recordHistory(entry TransferHistoryEntry) error {
 	entry.ID, _ = randomID()
 	if entry.ID == "" {
@@ -337,6 +396,9 @@ func (s *StateStore) readLocked() (persistedState, error) {
 	var state persistedState
 	if err := json.Unmarshal(data, &state); err != nil {
 		return persistedState{}, verrors.Wrap(verrors.CodeInternal, "local desktop state is not valid JSON", err)
+	}
+	if state.Schema == 1 {
+		state.Schema = stateSchema
 	}
 	if state.Schema != stateSchema {
 		return persistedState{}, verrors.New(verrors.CodeInternal, "local desktop state uses an unsupported schema")

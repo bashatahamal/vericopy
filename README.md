@@ -14,6 +14,11 @@ the primary user experience or a separate product direction.
 > macOS, and Linux are not published yet; native acceptance and signing remain
 > the next release work.
 
+![Vericopy desktop dashboard showing verified transfer evidence, connection readiness, saved sessions, and recent activity](docs/assets/vericopy-dashboard.png)
+
+*The Vericopy desktop dashboard. Example paths and transfer records are
+illustrative.*
+
 ## What the app does
 
 - Select a local file or folder without writing a transfer command.
@@ -21,6 +26,8 @@ the primary user experience or a separate product direction.
 - Require a verified `known_hosts` entry and stop on unknown or changed hosts.
 - Review the source, destination, authentication method, and access policy
   before opening the connection.
+- Queue multiple transfers, run up to two at once, and manage each job without
+  waiting to prepare the next one.
 - Resume compatible interrupted uploads.
 - Read the uploaded bytes back through SFTP and compare size and SHA-256 before
   finalizing the destination.
@@ -60,18 +67,45 @@ send files through Vericopy infrastructure.
 
 ### 3. Set up a transfer
 
+![Vericopy transfer setup showing source selection, SSH destination, permission policy, and authentication choices](docs/assets/vericopy-transfer-setup.png)
+
+*The transfer workspace keeps source, destination, policy, and authentication
+choices visible before Vericopy connects.*
+
 1. Choose **Set up transfer**.
 2. Select a local file or folder.
 3. Enter a destination such as
    `transfer@server.example:/srv/shared/report.pdf`.
 4. Choose **SSH key or agent** or **One-time password**.
 5. Review the permission and transfer options.
-6. Choose **Review transfer**, confirm the summary, and start the transfer.
-7. Keep the app open while it copies, reads the destination back, and reports
-   the verification result.
+6. Choose **Review transfer**, confirm the summary, and add it to the queue.
+7. Open **Transfers** to cancel, retry, remove, or monitor every job.
+8. Keep Vericopy open or minimized while it copies, reads the destination back,
+   and reports the verification result.
 
 The built-in **Help** view explains destinations, host identity, authentication,
 verification, permissions, and saved local data.
+
+## Multiple transfers and minimized progress
+
+![Vericopy transfer manager showing active, queued, password-required, and verified jobs](docs/assets/vericopy-transfer-manager.png)
+
+*Each job keeps its own progress and controls while the queue remains visible.*
+
+Vericopy runs up to two transfer jobs at once and keeps additional work queued
+in creation order. Each job has independent progress, cancellation, retry, and
+result state. You can return to **New transfer** immediately after queuing a job.
+
+Transfers continue while the Vericopy window is minimized. If active or queued
+work exists when the window is closed, Vericopy asks whether to minimize and
+keep running or quit and interrupt safely. It does not install a permanent
+background service and cannot continue after the process or operating system
+has stopped.
+
+Non-secret job setup survives an app restart. Jobs that were active wait for an
+explicit retry instead of reconnecting silently. Password jobs display
+**Needs password** because the password is never written to disk; key or agent
+jobs display **Paused** until the user retries them.
 
 ## Authentication and privacy
 
@@ -87,9 +121,11 @@ Like any credential entered into an application, it exists briefly in process
 memory while authenticating. Keyboard-interactive and multi-factor challenge
 flows are not supported.
 
-Saved sessions can contain local source paths, identity-key paths, destination
-details, and preferences. They never contain passwords, key contents, or key
-passphrases. Activity records are local and deliberately redacted.
+Saved sessions and recoverable job setup can contain local source paths,
+identity-key paths, destination details, and preferences. They never contain
+passwords, key contents, or key passphrases. The transfer manager exposes only
+source names and redacted destinations; activity records are local and
+deliberately redacted.
 
 ## Transfer guarantees
 

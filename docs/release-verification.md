@@ -46,11 +46,12 @@ At minimum, verify:
 2. light, dark, keyboard, reduced-motion, and narrow-window states;
 3. strict rejection of unknown and changed host keys;
 4. key/agent and one-time password authentication against a disposable host;
-5. file and folder transfer, resume, cancellation, overwrite protection, and
-   permission policy;
+5. file and folder transfer, bounded multi-job queuing, minimized progress,
+   resume, cancellation, overwrite protection, and permission policy;
 6. remote readback and SHA-256 result evidence;
 7. saved-session persistence and password non-persistence;
-8. redacted activity and clear-history behavior;
+8. restart recovery, password re-entry, redacted activity, and job/history
+   clearing behavior;
 9. package signature or notarization status;
 10. artifact SHA-256 and recorded build identity.
 

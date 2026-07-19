@@ -28,6 +28,8 @@ config:
 flowchart TB
     Desktop["Desktop application<br>primary product experience"]
     Service["Desktop Go service<br>validation, state, and events"]
+    Queue["Transfer scheduler<br>two active jobs and ordered queue"]
+    State["User-protected state<br>sessions and non-secret jobs"]
     Automation["Developer command adapter<br>automation and diagnostics"]
     Parse["Input boundary<br>local paths, remote specs, modes"]
     Policy["Policy layer<br>overwrite, permissions, diagnostics"]
@@ -38,7 +40,9 @@ flowchart TB
     Rsync["Optional rsync adapter<br>dialect preflight and argument vector"]
     Remote["Remote OpenSSH server<br>SFTP subsystem"]
 
-    Desktop --> Service --> Parse --> Policy
+    Desktop --> Service
+    Service --> State
+    Service --> Queue --> Parse --> Policy
     Automation -. supporting interface .-> Parse
     Policy --> SSH --> SFTP --> Remote
     Policy --> Engine --> SFTP
@@ -66,12 +70,17 @@ config:
 sequenceDiagram
     participant U as User<br>desktop application
     participant A as Vericopy app<br>review and progress
+    participant Q as Transfer manager<br>bounded scheduler
     participant V as Go service<br>transfer engine
     participant S as SSH and SFTP<br>server
     U->>A: Choose source, destination,<br>authentication, and policy
     A->>U: Review non-secret<br>transfer request
     U->>A: Start transfer
-    A->>V: Validated request<br>and cancellation context
+    A->>Q: Add reviewed request<br>to persistent queue
+    Q-->>A: Queued job ID<br>non-secret summary
+    Note over A,Q: User can prepare another transfer<br>or minimize the window
+    Q->>Q: Wait for one of<br>two worker slots
+    Q->>V: Validated request<br>and per-job cancellation context
     V->>V: Classify source<br>parse destination
     V->>S: SSH handshake<br>strict known_hosts callback
     S-->>V: Authenticated SFTP channel
@@ -86,8 +95,9 @@ sequenceDiagram
     V->>S: Apply mode, group,<br>and optional time policy
     V->>S: Rename partial<br>to final destination
     V->>S: Remove resume metadata
-    V-->>A: Verified result<br>and evidence
-    A-->>U: Completed, interrupted,<br>or failed state
+    V-->>Q: Verified result<br>and evidence
+    Q-->>A: Per-job progress<br>and terminal state
+    A-->>U: Manage queued, active,<br>interrupted, or verified work
 ```
 
 ## Package responsibilities
@@ -143,3 +153,17 @@ The desktop cancellation control and process termination signals cancel the
 active Go context. Source reads observe that context. Ordinary interruption
 retains compatible partial state and its restrictive metadata so a later
 transfer can resume safely when resume is enabled.
+
+## Queue and restart recovery
+
+The desktop service owns an in-process scheduler with two worker slots. A job is
+persisted before dispatch, then moves through queued, running, and terminal
+states. Byte progress is held in memory and emitted with the job ID; lifecycle
+state is written atomically so a crash does not turn an uncertain job into a
+verified result.
+
+The persisted request shape has no password field. A queued password can exist
+only in its in-memory runtime job until the SSH handshake starts. When the
+process exits, queued and running key/agent jobs recover as paused, while
+password-authenticated jobs recover as needs-password. The scheduler never
+automatically reconnects restored work.
