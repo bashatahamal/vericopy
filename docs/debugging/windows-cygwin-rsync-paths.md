@@ -1,5 +1,9 @@
 # Windows, Cygwin, and rsync path dialects
 
+> **Developer reference:** The desktop app uses native SFTP and native file
+> selection. This guide applies only to contributors or automation that
+> explicitly use the optional rsync adapter.
+
 A Windows path can be spelled several ways, and those spellings are not freely
 interchangeable across binaries.
 

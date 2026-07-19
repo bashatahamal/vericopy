@@ -16,13 +16,10 @@ For `/srv/shared/reports/annual-report.pdf`, inspect each component:
 namei -l /srv/shared/reports/annual-report.pdf
 ```
 
-Vericopy performs an equivalent mode-and-ownership check without inserting the
-destination path into a remote shell command:
-
-```sh
-vericopy check-access transfer@server:/srv/shared/reports/annual-report.pdf \
-  --as-user document-indexer
-```
+In the desktop app, open **Advanced**, enter `document-indexer` under
+**Verify readable by**, and review the result after transfer. Vericopy performs
+the mode-and-ownership check without inserting the destination path into a
+remote shell command.
 
 ## Group-based access
 
@@ -37,12 +34,9 @@ files       0640
 The leading `2` sets the setgid bit on directories. New children normally
 inherit the directory's group, which keeps a managed document tree consistent.
 
-```sh
-vericopy copy ./annual-report.pdf transfer@server:/srv/shared/reports/annual-report.pdf \
-  --permissions service-readonly \
-  --group readers \
-  --readable-by document-indexer
-```
+In the transfer form, choose **Service readonly**, then open **Advanced** and
+set **Remote group** to `readers` and **Verify readable by** to
+`document-indexer`.
 
 `service-readonly` is the owner-write, designated-group-read preset. The SSH
 account must already be allowed to set that group. Vericopy does not run `sudo`

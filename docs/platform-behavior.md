@@ -1,8 +1,9 @@
 # Platform behavior
 
-Vericopy separates the path a user typed from the path dialect the running
-binary can open. `inspect-path` makes that decision visible without connecting
-to a server.
+Vericopy separates the path selected by the user from the path dialect the
+running application can open. Native file and folder selection normally gives
+the app the correct platform form. The shared engine still classifies paths so
+saved sessions and imported values fail clearly instead of being guessed.
 
 ## Recognized local forms
 
@@ -16,8 +17,8 @@ to a server.
 | POSIX absolute | `/home/me/Documents/annual-report.pdf` | `posix` |
 | Relative | `reports/annual-report.pdf` | `relative` |
 
-Spaces and Unicode remain data within one process argument. Quote paths for the
-launching shell, then Vericopy preserves the resulting argument.
+Spaces and Unicode remain part of the selected path and require no special
+handling in the desktop interface.
 
 ## Runtime opening rules
 
@@ -56,12 +57,13 @@ checks and operational clarity.
 
 The default policy is `private`, not `preserve`.
 
-## Rsync path dialects
+## Developer-only rsync adapter
 
-The optional backend locates the actual executable and classifies Cygwin,
+The supporting command adapter has an optional rsync backend. It is not exposed
+as a desktop workflow. It locates the actual executable and classifies Cygwin,
 MSYS/MINGW, native Windows, or Unix behavior where possible. The dialect belongs
 to the binary. A Cygwin rsync launched from Git Bash still expects Cygwin paths.
 
-Vericopy rejects known mismatches with `SOURCE_PATH_DIALECT_MISMATCH`. Cygwin
+The engine rejects known mismatches with `SOURCE_PATH_DIALECT_MISMATCH`. Cygwin
 conversion should use the matching installation's `cygpath`, because the drive
 prefix can be customized. See the [debugging guide](debugging/windows-cygwin-rsync-paths.md).

@@ -1,7 +1,7 @@
 # Contributing
 
-Vericopy welcomes focused changes that preserve strict defaults and improve
-cross-platform predictability.
+Vericopy welcomes focused changes that improve its native desktop experience
+while preserving strict transfer defaults and cross-platform predictability.
 
 ## Before starting
 
@@ -17,6 +17,7 @@ Use Go 1.25 or later and Docker for the isolated OpenSSH suite.
 ```sh
 go mod download
 go test ./...
+go test -tags desktop ./cmd/vericopy-desktop
 go vet ./...
 ./integration/run.sh
 ```
@@ -37,6 +38,8 @@ accept `CONTAINER_RUNTIME=podman` for a compatible local runtime.
 ## Change rules
 
 - Add tests for success, rejection, and unsafe-input cases.
+- Treat the desktop application as the primary product interface. Supporting
+  command behavior must not force command-line concepts into the user workflow.
 - Keep native transfers free of shell interpolation.
 - Never add a host-key bypass or password argument.
 - Treat new JSON fields and diagnostics as public interfaces.
@@ -48,6 +51,8 @@ accept `CONTAINER_RUNTIME=podman` for a compatible local runtime.
 Use conventional commit subjects such as `fix(paths): distinguish drive colons`.
 Keep commits technical and scoped. Pull requests should explain the problem,
 security effect, testing, platform behavior, and any breaking change.
+Changes to the desktop workflow or visuals should also record the app states
+that were exercised and update the native acceptance checklist when relevant.
 
 ## Tests
 

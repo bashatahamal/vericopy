@@ -31,8 +31,8 @@ status detail, never as a primary action color.
 
 The primary light theme combinations use near-black or deep green on warm
 off-white. Gold is not used for body copy because it is a detail color, not a
-general text color. Dark-theme colors are reserved for any later documentation
-site and must be retested in the exact surface.
+general text color. The desktop app implements the dark palette and keeps the
+same hierarchy and semantic roles in both themes.
 
 ## Typography
 
@@ -65,13 +65,12 @@ instead of repeated cards; and the transfer form reads as a numbered sequence.
 Monospace is reserved for technical facts rather than used as an all-purpose
 visual texture.
 
-## CLI behavior
+## Technical and diagnostic output
 
-The CLI is fully usable without color. The current release emits no ANSI color,
-which makes `--no-color`, redirected output, and non-interactive environments
-equivalent. Future color may reinforce success or severity, but it must never be
-the only carrier of meaning. Diagnostic code, wording, and exit status remain
-authoritative.
+The supporting command adapter is an engineering surface, not part of the
+desktop visual identity. It remains fully usable without color so redirected
+output and non-interactive environments are unambiguous. Diagnostic code,
+wording, and exit status remain authoritative.
 
 JSON output contains no styling or progress animation. Human output uses short
 headings, concrete paths, lower-noise status lines, and a direct `Next:` remedy.

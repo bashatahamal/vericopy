@@ -1,8 +1,13 @@
 # Architecture
 
-Vericopy separates parsing, security policy, transport, transfer state, and
-presentation. Security-sensitive boundaries accept injected interfaces so tests
-can exercise rejection and failure paths without a production server.
+Vericopy is a native desktop application with a local Go service and transfer
+engine. It separates presentation, persistence, validation, security policy,
+transport, and transfer state. Security-sensitive boundaries accept injected
+interfaces so tests can exercise rejection and failure paths without a
+production server.
+
+The command adapter is retained for engineering automation and diagnostics. It
+reuses the same engine but is not a parallel product surface.
 
 ## Components
 
@@ -21,8 +26,9 @@ config:
     clusterBorder: '#a16f0b'
 ---
 flowchart TB
-    Desktop["Desktop UI<br>Wails workspace and native file selection"]
-    CLI["CLI layer<br>Cobra commands and stable output"]
+    Desktop["Desktop application<br>primary product experience"]
+    Service["Desktop Go service<br>validation, state, and events"]
+    Automation["Developer command adapter<br>automation and diagnostics"]
     Parse["Input boundary<br>local paths, remote specs, modes"]
     Policy["Policy layer<br>overwrite, permissions, diagnostics"]
     SSH["SSH boundary<br>key, agent, or one-time password<br>strict known_hosts"]
@@ -32,8 +38,8 @@ flowchart TB
     Rsync["Optional rsync adapter<br>dialect preflight and argument vector"]
     Remote["Remote OpenSSH server<br>SFTP subsystem"]
 
-    Desktop --> Parse
-    CLI --> Parse --> Policy
+    Desktop --> Service --> Parse --> Policy
+    Automation -. supporting interface .-> Parse
     Policy --> SSH --> SFTP --> Remote
     Policy --> Engine --> SFTP
     Policy --> Access --> SFTP
@@ -58,10 +64,14 @@ config:
     labelBoxBorderColor: '#0e6e55'
 ---
 sequenceDiagram
-    participant U as User<br>or automation
-    participant V as Vericopy<br>transfer engine
+    participant U as User<br>desktop application
+    participant A as Vericopy app<br>review and progress
+    participant V as Go service<br>transfer engine
     participant S as SSH and SFTP<br>server
-    U->>V: copy SOURCE DESTINATION<br>resume and policy
+    U->>A: Choose source, destination,<br>authentication, and policy
+    A->>U: Review non-secret<br>transfer request
+    U->>A: Start transfer
+    A->>V: Validated request<br>and cancellation context
     V->>V: Classify source<br>parse destination
     V->>S: SSH handshake<br>strict known_hosts callback
     S-->>V: Authenticated SFTP channel
@@ -76,14 +86,17 @@ sequenceDiagram
     V->>S: Apply mode, group,<br>and optional time policy
     V->>S: Rename partial<br>to final destination
     V->>S: Remove resume metadata
-    V-->>U: Verified result<br>human or JSON
+    V-->>A: Verified result<br>and evidence
+    A-->>U: Completed, interrupted,<br>or failed state
 ```
 
 ## Package responsibilities
 
 | Package | Responsibility |
 | --- | --- |
-| `internal/app` | Commands, flags, dependency assembly, output selection |
+| `internal/desktop` | Desktop validation, state, progress, cancellation, and transfer orchestration |
+| `cmd/vericopy-desktop` | Native Wails application entry point and bindings |
+| `internal/app` | Supporting command adapter, flags, and automation output |
 | `internal/localpath` | Path dialect classification and runtime normalization |
 | `internal/remote` | Safe `[user@]host:path` parsing and traversal rejection |
 | `internal/sshclient` | Authentication and strict host-key verification |
@@ -119,13 +132,14 @@ before that whole-file comparison.
 
 The default is no overwrite. Vericopy stats the destination before work and the
 SFTP server processes the final rename. Filesystem rename semantics vary, so the
-operation is described as best-effort atomic. With `--overwrite`, an existing
-file is removed immediately before rename because portable SFTP replacement
-semantics differ across servers. That creates a short replacement window and is
-why overwrite must be explicit.
+operation is described as best-effort atomic. When the user explicitly enables
+overwrite, an existing file is removed immediately before rename because
+portable SFTP replacement semantics differ across servers. That creates a short
+replacement window and is why overwrite must be explicit.
 
 ## Cancellation
 
-The process derives a context from `SIGINT` and `SIGTERM`. Source reads observe
-that context. Ordinary interruption retains compatible partial state and its
-restrictive metadata so `--resume` can continue safely.
+The desktop cancellation control and process termination signals cancel the
+active Go context. Source reads observe that context. Ordinary interruption
+retains compatible partial state and its restrictive metadata so a later
+transfer can resume safely when resume is enabled.

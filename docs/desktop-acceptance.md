@@ -69,7 +69,7 @@ version, Wails version, test date, and every failed scenario. Update
 
 | Evidence | Value |
 | --- | --- |
-| Wails CLI | `v2.13.0` |
+| Wails version | `v2.13.0` |
 | Command | `wails build -clean -webview2 embed` |
 | Artifact | `cmd/vericopy-desktop/build/bin/vericopy-desktop.exe` |
 | SHA-256 | `9446dd69840bce870f7ca52c656b7b7a10d79e854d0c6414e72f125e4989fdfe` |

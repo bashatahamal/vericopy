@@ -1,107 +1,117 @@
-# Release verification
+# Desktop release verification
 
-Every tagged release produces six platform archives, a `SHA256SUMS` file, SBOM
-files, and GitHub artifact attestations.
+Vericopy releases are native desktop applications. A public release is ready
+only when the app has been built and accepted on Windows, macOS, and Linux and
+the published package for each platform has matching checksum and provenance
+evidence.
 
-These are currently CLI archives. Native desktop packages are a separate
-release gate: Wails must build each package on its target operating system, and
-Windows/macOS signing credentials must be available before those packages are
-published. See the [desktop acceptance checklist](desktop-acceptance.md).
+The repository does not currently publish signed desktop installers. Existing
+development executables and command-interface archives are engineering
+artifacts, not the end-user product release.
 
-```text
-vericopy_windows_amd64.zip
-vericopy_windows_arm64.zip
-vericopy_darwin_amd64.tar.gz
-vericopy_darwin_arm64.tar.gz
-vericopy_linux_amd64.tar.gz
-vericopy_linux_arm64.tar.gz
-SHA256SUMS
+## Required release artifacts
+
+The exact package extensions follow each platform's native packaging decision,
+but a release must contain:
+
+- a signed Windows desktop package;
+- a signed and notarized macOS desktop package;
+- an accepted Linux desktop package;
+- `SHA256SUMS` covering every published package;
+- build provenance or GitHub artifact attestations;
+- release notes and the relevant security limitations.
+
+Do not publish or install a package when its checksum, signature, notarization,
+or provenance check fails.
+
+## Native build rule
+
+Build each Wails package on the operating system where it will run:
+
+```sh
+go install github.com/wailsapp/wails/v2/cmd/wails@v2.13.0
+make desktop-package
 ```
 
-Do not install a binary when the checksum or attestation fails.
+Generic Go cross-compilation is useful for testing the shared engine, but it
+does not produce an accepted native Wails application package.
 
-## macOS and Linux
+## Acceptance rule
 
-Download the archive and `SHA256SUMS` from the same release page. Then run:
+Before signing a package, complete the
+[desktop acceptance checklist](desktop-acceptance.md) on that exact artifact.
+At minimum, verify:
+
+1. native launch and window behavior;
+2. light, dark, keyboard, reduced-motion, and narrow-window states;
+3. strict rejection of unknown and changed host keys;
+4. key/agent and one-time password authentication against a disposable host;
+5. file and folder transfer, resume, cancellation, overwrite protection, and
+   permission policy;
+6. remote readback and SHA-256 result evidence;
+7. saved-session persistence and password non-persistence;
+8. redacted activity and clear-history behavior;
+9. package signature or notarization status;
+10. artifact SHA-256 and recorded build identity.
+
+## Checksum verification
+
+Linux:
 
 ```sh
 sha256sum --ignore-missing -c SHA256SUMS
 ```
 
-macOS ships `shasum` instead:
+macOS:
 
 ```sh
-grep 'vericopy_darwin_arm64.tar.gz' SHA256SUMS | shasum -a 256 -c -
+shasum -a 256 -c SHA256SUMS
 ```
 
-Extract, inspect the build identity, and run the local prerequisite check:
-
-```sh
-tar -xzf vericopy_linux_amd64.tar.gz
-./vericopy version
-./vericopy doctor
-```
-
-The reported version must match the release tag. The commit should match the
-tagged commit shown by the repository.
-
-## Windows PowerShell
+Windows PowerShell:
 
 ```powershell
-$Archive = 'vericopy_windows_amd64.zip'
-$Expected = (Select-String -Path .\SHA256SUMS -Pattern $Archive).Line.Split(' ')[0]
-$Actual = (Get-FileHash -Algorithm SHA256 $Archive).Hash.ToLowerInvariant()
+$Package = 'Vericopy-package-name'
+$Expected = (Select-String -Path .\SHA256SUMS -Pattern $Package).Line.Split(' ')[0]
+$Actual = (Get-FileHash -Algorithm SHA256 $Package).Hash.ToLowerInvariant()
 if ($Actual -ne $Expected.ToLowerInvariant()) {
-  throw "Checksum mismatch for $Archive"
+  throw "Checksum mismatch for $Package"
 }
-Expand-Archive $Archive -DestinationPath .\vericopy-release
-.\vericopy-release\vericopy.exe version
-.\vericopy-release\vericopy.exe doctor
 ```
 
 ## GitHub artifact attestation
 
-With GitHub CLI installed and authenticated:
+With the GitHub command-line client installed and authenticated:
 
 ```sh
-gh attestation verify vericopy_linux_amd64.tar.gz \
+gh attestation verify Vericopy-package-name \
   --repo bashatahamal/vericopy
 ```
 
-Repeat for the archive you install and `SHA256SUMS`. Attestation verifies the
-GitHub Actions build provenance, not whether the software is safe for every use.
+Attestation verifies build provenance. It does not replace the native package
+signature, acceptance testing, or the user's decision to trust the software.
 
 ## Maintainer release checklist
 
-1. Confirm `docs/project-status.md` and the acceptance checklist are current.
+1. Confirm [project status](project-status.md), the changelog, security model,
+   and desktop acceptance evidence are current.
 2. Change `VERSION` from the development identifier to `X.Y.Z`.
-3. Move changelog entries under `[X.Y.Z] - YYYY-MM-DD` and update comparison
-   links.
-4. Run formatting, unit, race, vet, static, vulnerability, integration, and
-   cross-build checks.
-5. Run `goreleaser release --snapshot --clean` and inspect all archive names,
-   contents, checksums, SBOMs, and version output.
-6. Commit the release and create a signed `vX.Y.Z` tag.
-7. Push only after review. The tag workflow creates a draft release.
-8. Verify checksums and attestations from the draft before publishing it.
-9. For a desktop release, run `make desktop-package` on each native platform,
-   complete the desktop acceptance checklist, sign the packages, and add their
-   checksums to the release evidence before publishing.
+3. Move changelog entries under `[X.Y.Z] - YYYY-MM-DD`.
+4. Run unit, desktop-tagged, race, vet, static, vulnerability, OpenSSH
+   integration, and frontend checks.
+5. Build the desktop package independently on Windows, macOS, and Linux.
+6. Complete acceptance against each exact package.
+7. Sign or notarize the applicable packages.
+8. Generate and independently verify checksums and provenance.
+9. Create a signed `vX.Y.Z` tag and a draft GitHub release.
+10. Inspect the downloaded draft artifacts before publishing the release.
 
-GitHub Actions, artifact-attestation permissions, `main` required checks,
-private vulnerability reporting, Dependabot alerts/security updates, and an
-immutable `v*` tag ruleset are enabled for this repository. The release job
-requests `contents: write`, `id-token: write`, and `attestations: write` only
-in that job. Final release publication remains a manual decision after draft
-artifact inspection.
+Final publication remains a manual decision. A passing engine build or command
+archive alone is not sufficient evidence for a desktop release.
 
-## Reproducible builds
+## Reproducibility notes
 
-Builds use `-trimpath`, disable VCS auto-embedding, and inject version, commit,
-and a commit-derived date. Local Make builds default the date to `unknown` so a
-wall clock does not create unexplained differences. Release environments should
-derive `BUILD_DATE` from the tagged commit or `SOURCE_DATE_EPOCH`.
-
-Go module downloads are authenticated through `go.sum`. A bit-for-bit rebuild
-also depends on matching the Go toolchain, operating system packaging behavior,
-and GoReleaser version recorded by the workflow.
+Builds use `-trimpath`, disable automatic VCS embedding, and inject version,
+commit, and build date. Reproducing a desktop package also requires the recorded
+Go version, Wails version, native compiler and WebView dependencies, operating
+system packaging tools, and signing configuration.

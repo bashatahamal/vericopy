@@ -2,318 +2,165 @@
 
 # Vericopy
 
-Desktop-first, cross-platform file transfer over SSH with strict host
-verification, SHA-256 validation, Windows path normalization, and documented
-destination permissions.
+Vericopy is a native desktop application for sending files and folders to an
+SSH server with strict host verification and byte-for-byte SHA-256 validation.
 
-> Project status: `0.1.0-dev`. The verified transfer engine is implemented and
-> the desktop application is now the primary product surface. See the
-> [living project tracker](docs/project-status.md) for exact status and next work.
+The desktop application is the product. The repository also contains a command
+interface used for engine testing, diagnostics, and automation, but it is not
+the primary user experience or a separate product direction.
 
-Vericopy is a native desktop application backed by a Go transfer engine. Its
-CLI remains available for automation and expert workflows. The desktop app does
-not require a hosted service: transfers run from the user's machine, use the
-local SSH agent or explicitly selected key, and retain strict `known_hosts`
-verification. The desktop app can also use a one-time SSH password without
-adding it to saved sessions, history, or logs.
+> **Current release state:** Vericopy is `0.1.0-dev`. The Windows desktop build
+> compiles and the automated test suite passes. Signed installers for Windows,
+> macOS, and Linux are not published yet; native acceptance and signing remain
+> the next release work.
 
-## Desktop application
+## What the app does
 
-The in-progress desktop surface is a focused transfer workspace: choose a local
-file or folder, review a remote destination and security policy, then transfer
-and verify without composing an SSH command by hand. It is built with Wails and
-shares the exact same Go transfer engine as the CLI; it is not a separate or
-less-secure implementation.
+- Select a local file or folder without writing a transfer command.
+- Connect with an SSH key, SSH agent, or one-time SSH password.
+- Require a verified `known_hosts` entry and stop on unknown or changed hosts.
+- Review the source, destination, authentication method, and access policy
+  before opening the connection.
+- Resume compatible interrupted uploads.
+- Read the uploaded bytes back through SFTP and compare size and SHA-256 before
+  finalizing the destination.
+- Apply an explicit destination permission policy.
+- Keep saved sessions and redacted activity locally, with no telemetry.
 
-The initial desktop workflow includes source inspection, destination validation,
-strict host-key prerequisites, transfer review, verified SFTP execution, and a
-clear result state. It also has local saved sessions, truthful per-file byte
-progress, and redacted local transfer history. Sessions persist complete form
-state, including source and identity-key paths, but never passwords or key
-contents. A built-in Help view explains connection setup, authentication, host
-identity, and the verified-transfer sequence. Its task-first editorial interface
-uses bundled offline fonts for consistent rendering across platforms. Native acceptance
-and signed packaging remain release gates; see the [desktop UI plan](docs/desktop-ui.md)
-and [desktop acceptance checklist](docs/desktop-acceptance.md).
+## Use the desktop app
 
-## Why Vericopy
+### 1. Prepare the server identity
 
-- Resumes compatible partial uploads instead of restarting large files.
-- Reads the remote bytes back through SFTP and compares size plus SHA-256 before
-  finalization.
-- Rejects unknown and changed SSH host keys by default.
-- Distinguishes Windows drive paths from `user@host:path` destinations.
-- Understands native Windows, UNC, Git Bash/MINGW, Cygwin, and POSIX path forms.
-- Applies explicit POSIX destination permissions instead of copying synthetic
-  Windows or Cygwin mode bits.
-- Checks whether a service account can traverse and read the final destination.
-- Never accepts a password in process arguments, never persists a desktop
-  password, and sends no telemetry.
+Obtain the SSH server fingerprint from the server administrator or another
+trusted channel. Add the matching host key to your local `known_hosts` file.
+Vericopy does not provide an accept-any-host bypass.
 
-## Short demonstration
+`ssh-keyscan` can retrieve a public key, but it does not prove that the key
+belongs to the intended server. Compare the fingerprint independently before
+trusting it.
 
-```console
-$ vericopy inspect-path 'C:\Users\me\Documents\quarterly-report.zip' --target-os windows
-kind: windows-drive
-normalized: C:\Users\me\Documents\quarterly-report.zip
-target OS: windows
+### 2. Open Vericopy
 
-$ vericopy copy 'C:\Users\me\Documents\quarterly-report.zip' \
-    transfer@files.example:/srv/shared/quarterly-report.zip \
-    --resume --permissions shared --readable-by document-indexer
-Transferred 1 file(s), 42890211 bytes to /srv/shared/quarterly-report.zip
-SHA-256: 4b7c...9a20
-```
-
-## Install the CLI from source
-
-Requirements: Go 1.25 or later. The project is developed against the current
-stable Go toolchain.
+Until signed installers are available, build the app on the operating system
+where it will run:
 
 ```sh
 git clone https://github.com/bashatahamal/vericopy.git
 cd vericopy
-go build -trimpath -o ./bin/vericopy ./cmd/vericopy
-```
-
-CLI archives will be available for Windows, macOS, and Linux on amd64 and arm64
-after the first tagged release. Native desktop packages require separate
-per-platform acceptance and signing before publication; see
-[release verification](docs/release-verification.md).
-
-### Build the desktop development binary
-
-The desktop shell uses checked-in, embedded frontend assets. On a supported
-desktop platform, build it with:
-
-```sh
-make desktop-build
-./bin/vericopy-desktop
-```
-
-The UI requires a native desktop session. It does not start a web server or
-send files through a hosted intermediary.
-
-To produce a native Wails package on its target operating system, install the
-matching Wails CLI and run `make desktop-package`:
-
-```sh
 go install github.com/wailsapp/wails/v2/cmd/wails@v2.13.0
 make desktop-package
 ```
 
-This is intentionally not treated as a cross-build: package, signing, and
-acceptance evidence must be produced on the platform that will run the app.
+The packaged application is written to `cmd/vericopy-desktop/build/bin/`.
+Development builds can use `make desktop-build`, but the Wails package is the
+representative native application build.
 
-When building a Linux desktop package under WSL, use a separate checkout in the
-Linux filesystem, such as `~/src/vericopy`. Do not build it from the mounted
-`/mnt/c/...` checkout that also produces Windows packages: a running Windows
-executable is locked and prevents WSL from cleaning the shared `build/bin`
-directory.
+The app runs locally. It does not start a hosted transfer service and does not
+send files through Vericopy infrastructure.
 
-## CLI quick start
+### 3. Set up a transfer
 
-1. Load a private key into your SSH agent.
-2. Add the server host key to `~/.ssh/known_hosts` only after verifying its
-   fingerprint through a trusted channel.
-3. Inspect an unfamiliar source path.
-4. Run a dry run, then copy.
+1. Choose **Set up transfer**.
+2. Select a local file or folder.
+3. Enter a destination such as
+   `transfer@server.example:/srv/shared/report.pdf`.
+4. Choose **SSH key or agent** or **One-time password**.
+5. Review the permission and transfer options.
+6. Choose **Review transfer**, confirm the summary, and start the transfer.
+7. Keep the app open while it copies, reads the destination back, and reports
+   the verification result.
 
-```sh
-ssh-add ~/.ssh/id_ed25519
-vericopy doctor
-vericopy inspect-path '/home/me/Documents/annual-report.pdf'
-vericopy copy '/home/me/Documents/annual-report.pdf' \
-  'transfer@server.example:/srv/shared/annual-report.pdf' \
-  --resume --dry-run
-vericopy copy '/home/me/Documents/annual-report.pdf' \
-  'transfer@server.example:/srv/shared/annual-report.pdf' \
-  --resume --permissions shared
-```
+The built-in **Help** view explains destinations, host identity, authentication,
+verification, permissions, and saved local data.
 
-Vericopy never trusts a host automatically. `ssh-keyscan` retrieves a key but
-does not authenticate it; compare its fingerprint through an independent,
-trusted channel before adding it to `known_hosts`.
+## Authentication and privacy
 
-## Commands
+SSH keys and the local SSH agent remain the recommended authentication method.
+An encrypted private key should be loaded into the agent before starting a
+transfer.
 
-```text
-vericopy copy SOURCE DESTINATION
-vericopy verify SOURCE DESTINATION
-vericopy doctor
-vericopy inspect-path PATH
-vericopy check-access DESTINATION --as-user USER
-vericopy version
-```
+One-time password mode is an explicit alternative for servers that permit SSH
+password authentication. The password is sent only to the native SSH connection
+when the transfer starts. It is not stored in saved sessions, reviews, activity,
+progress, or logs, and the visible field is cleared when the transfer begins.
+Like any credential entered into an application, it exists briefly in process
+memory while authenticating. Keyboard-interactive and multi-factor challenge
+flows are not supported.
 
-Run `vericopy COMMAND --help` for all flags. Common connection flags are
-`--identity`, `--port`, and `--known-hosts`. Output flags are `--json`, `--quiet`,
-and `--no-color`.
+Saved sessions can contain local source paths, identity-key paths, destination
+details, and preferences. They never contain passwords, key contents, or key
+passphrases. Activity records are local and deliberately redacted.
 
-## Common workflows
+## Transfer guarantees
 
-### Resume and verify one large file
+Vericopy uses native SFTP by default and never interpolates selected file paths
+into a remote shell command. A successful result means the remote bytes matched
+the source bytes Vericopy observed by both size and SHA-256 before the final
+name was applied.
 
-```sh
-vericopy copy ./archive.tar.zst user@host:/srv/archive.tar.zst --resume
-```
+That result does not prove that the source file is trustworthy or malware-free,
+and it cannot prevent a remote administrator from changing a file later. Read
+the complete [security model](docs/security-model.md) for the exact boundaries.
 
-Vericopy writes a restrictive hidden partial file plus non-secret compatibility
-metadata. It checks size, modification time, and source/partial prefix bytes
-before appending. It reads the finished partial file back through SFTP, compares
-size and SHA-256, applies policy, and renames it. Finalization is best-effort
-atomic because the remote filesystem and SFTP server determine rename behavior.
-
-### Copy a directory
-
-```sh
-vericopy copy ./photos user@host:/srv/photos --recursive --resume
-```
-
-Symlinks and special files are rejected. An existing destination is rejected
-unless `--overwrite` is explicit.
-
-### Verify an existing destination
-
-```sh
-vericopy verify ./archive.tar.zst user@host:/srv/archive.tar.zst
-```
-
-### Check service-account access
-
-```sh
-vericopy check-access user@host:/srv/shared/annual-report.pdf --as-user document-indexer
-```
-
-The check reads numeric user/group information and SFTP metadata. It does not
-invoke `sudo`, change groups, run recursive `chmod`, or modify the server.
-
-## Windows examples
-
-PowerShell:
-
-```powershell
-vericopy.exe copy `
-  'C:\Users\me\Documents\quarterly-report.zip' `
-  'transfer@server:/srv/shared/quarterly-report.zip' `
-  --resume --permissions shared
-```
-
-Git Bash:
-
-```sh
-vericopy.exe copy \
-  '/c/Users/me/Documents/quarterly-report.zip' \
-  'transfer@server:/srv/shared/quarterly-report.zip' \
-  --resume --permissions shared
-```
-
-The native SFTP backend normalizes the local path internally. The optional
-rsync backend treats path dialect as a property of the selected rsync binary,
-not the launching shell. See the
-[Cygwin and MINGW debugging guide](docs/debugging/windows-cygwin-rsync-paths.md).
-
-## Permission presets
+## Permission policies
 
 | Policy | Directories | Files | Intended use |
 | --- | ---: | ---: | --- |
 | `private` | `0700` | `0600` | SSH account only |
 | `shared` | `2770` | `0660` | Read/write group collaboration |
-| `service-readonly` | `2750` | `0640` | Owner writes, a designated read-only group reads |
+| `service-readonly` | `2750` | `0640` | Owner writes; a designated group reads |
 | `public-readonly` | `0755` | `0644` | World-readable published content |
-| `preserve` | source mode | source mode | Explicit POSIX-to-POSIX preservation |
+| `preserve` | Source mode | Source mode | Explicit POSIX-to-POSIX preservation |
 
-`--file-mode` and `--directory-mode` override a preset after octal validation.
-`--group NAME` resolves a remote group and applies it without privilege
-escalation. Windows ACL replication is outside the initial scope.
+Windows ACL replication is outside the current product scope.
 
-## JSON and exit codes
+## Platform and release status
 
-```sh
-vericopy inspect-path '/cygdrive/c/Users/me/Documents/annual-report.pdf' --target-os windows --json
-```
+The transfer engine is tested on Windows, macOS, and Linux. The redesigned
+Windows Wails executable has been compiled successfully. Public desktop release
+packages still require native UI acceptance, platform packaging, checksums, and
+code signing where applicable.
 
-Success:
-
-```json
-{"ok":true,"result":{"original":"/cygdrive/c/Users/me/Documents/annual-report.pdf","kind":"cygwin","normalized":"C:\\Users\\me\\Documents\\annual-report.pdf","target_os":"windows","absolute":true}}
-```
-
-Failure:
-
-```json
-{"ok":false,"error":{"code":"HOST_KEY_REJECTED","message":"the SSH server host key is unknown or does not match known_hosts","hint":"Verify the server fingerprint independently. Never bypass this check."}}
-```
-
-| Exit | Meaning |
-| ---: | --- |
-| `0` | Success |
-| `2` | Invalid input, path, mode, or dialect |
-| `3` | Host identity or authentication failure |
-| `4` | Connection or transfer failure |
-| `5` | Integrity, resume, or verification failure |
-| `6` | Group or service-account access failure |
-| `10` | Unexpected internal failure |
-
-## Platform behavior
-
-| Source form | Windows build | macOS/Linux build |
-| --- | --- | --- |
-| `C:\Users\...` | Normalized and opened | Classified, but not opened |
-| `\\server\share\...` | Supported where Go can open the share | Classified, but not opened |
-| `/c/Users/...` | Converted to a Windows drive path | Classified, but not opened |
-| `/cygdrive/c/Users/...` | Converted to a Windows drive path | Classified, but not opened |
-| `/home/user/...` | Requires a Windows drive mapping | Opened as POSIX |
-
-Read the full [platform compatibility contract](docs/platform-behavior.md).
-
-## Security and architecture
-
-- [Security model](docs/security-model.md)
-- [Architecture and transfer sequence](docs/architecture.md)
-- [Linux service permission guide](docs/guides/linux-service-permissions.md)
-- [Brand and accessibility decisions](docs/brand.md)
-- [Desktop acceptance checklist](docs/desktop-acceptance.md)
-
-SHA-256 proves that the destination bytes match the source bytes Vericopy
-observed. It does not prove that the source is trustworthy, safe, or malware-free.
+Track delivery in [project status](docs/project-status.md) and the
+[desktop acceptance checklist](docs/desktop-acceptance.md). Release verification
+requirements are documented in [release verification](docs/release-verification.md).
 
 ## Development
 
+Requirements: Go 1.25 or later. A native Wails package must be built on its
+target operating system.
+
 ```sh
-go test ./...
-go test -race ./...
+go test -count=1 ./...
+go test -tags desktop -count=1 ./cmd/vericopy-desktop
 go vet ./...
-go run honnef.co/go/tools/cmd/staticcheck@v0.7.0 ./...
-go run golang.org/x/vuln/cmd/govulncheck@v1.6.0 ./...
-make cross-build
-sh ./integration/run.sh   # requires Docker and OpenSSH client tools
-CONTAINER_RUNTIME=podman VERICOPY_GO_BIN=/path/to/go ./integration/run.sh
-CONTAINER_RUNTIME=podman ./scripts/race-container.sh
+make desktop-package
 ```
 
-`Makefile` accepts `GO=/path/to/go`, `COMMIT=...`, and `BUILD_DATE=...`.
-Set `BUILD_DATE` from `SOURCE_DATE_EPOCH` in reproducible release environments;
-ordinary local builds use `unknown` rather than embedding the current time.
+The command interface remains available to contributors for automation,
+diagnostics, and direct transfer-engine testing. It intentionally does not
+accept passwords as arguments. See the
+[developer command reference](docs/developer-command-reference.md)
+when working on that interface.
 
-## Limitations and non-goals
+## Documentation
 
-- Exact Windows ACL translation is not attempted.
-- Symlink following is not implemented.
-- Password authentication is not accepted through arguments.
-- The optional rsync adapter currently supports regular files only. It performs
-  native SFTP-based SHA-256 confirmation after rsync completes.
-- Rename finalization cannot be more atomic than the remote filesystem permits.
-- Service-user checks model POSIX mode bits and group membership, not every ACL,
-  MAC, mount, namespace, or application sandbox policy.
+- [Desktop product specification](docs/desktop-ui.md)
+- [Security model](docs/security-model.md)
+- [Architecture and transfer sequence](docs/architecture.md)
+- [Platform behavior](docs/platform-behavior.md)
+- [Brand and accessibility](docs/brand.md)
+- [Contributing](CONTRIBUTING.md)
 
-## Project origin
+## Current limitations
 
-The project began with a practical Windows interoperability failure: Git Bash
-presented a source as `/c/...`, while a Cygwin-built rsync executable expected
-its own configured path dialect, commonly `/cygdrive/c/...`. The launching
-shell did not determine the binary's path model. Vericopy makes that boundary
-visible and avoids it entirely in the default native SFTP backend.
+- Signed desktop installers are not published yet.
+- Native acceptance is not complete on all three target operating systems.
+- Symlinks and special files are rejected.
+- Exact Windows ACL and extended-attribute replication are not attempted.
+- Password mode does not support keyboard-interactive or MFA challenges.
+- Final rename behavior cannot be more atomic than the remote filesystem and
+  SFTP server permit.
 
 ## License
 
