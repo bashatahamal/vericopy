@@ -89,6 +89,11 @@ func Dial(ctx context.Context, options Options) (*Client, error) {
 	if options.User == "" {
 		return nil, verrors.New(verrors.CodeInvalidArguments, "an SSH user is required")
 	}
+	// Hostnames are case-insensitive (RFC 4343), but the known_hosts matcher
+	// in golang.org/x/crypto/ssh/knownhosts compares them byte-for-byte, so a
+	// case difference between the entered destination and the stored entry
+	// would otherwise be rejected as an unknown host.
+	options.Host = strings.ToLower(options.Host)
 	callback := options.HostKeyCallback
 	if callback == nil {
 		var err error
