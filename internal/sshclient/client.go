@@ -2,6 +2,8 @@ package sshclient
 
 import (
 	"context"
+	"crypto/ed25519"
+	"crypto/rand"
 	"errors"
 	"fmt"
 	"net"
@@ -76,6 +78,57 @@ func NewHostKeyCallback(filename string) (ssh.HostKeyCallback, error) {
 	}, nil
 }
 
+// preferredHostKeyAlgorithms returns the host key algorithm names already
+// recorded in knownHostsFile for address, in file order with duplicates
+// removed. It reports no algorithms (nil) if the file is unavailable or
+// address has no existing entry, leaving negotiation to the library default.
+//
+// This works by probing the real known_hosts matcher with a throwaway key:
+// a mismatch error still reports every known_hosts line that matched the
+// address, regardless of which key type the probe used, so this reuses the
+// library's own hostname and hashed-hostname matching instead of
+// reimplementing it.
+func preferredHostKeyAlgorithms(knownHostsFile, address string) []string {
+	callback, err := knownhosts.New(knownHostsFile)
+	if err != nil {
+		return nil
+	}
+	probeKey, err := randomProbeKey()
+	if err != nil {
+		return nil
+	}
+	remote := &net.TCPAddr{IP: net.IPv4zero}
+	var keyErr *knownhosts.KeyError
+	if err := callback(address, remote, probeKey); !errors.As(err, &keyErr) {
+		return nil
+	}
+	seen := make(map[string]bool, len(keyErr.Want))
+	algorithms := make([]string, 0, len(keyErr.Want))
+	for _, known := range keyErr.Want {
+		algorithmName := known.Key.Type()
+		if seen[algorithmName] {
+			continue
+		}
+		seen[algorithmName] = true
+		algorithms = append(algorithms, algorithmName)
+	}
+	if len(algorithms) == 0 {
+		return nil
+	}
+	return algorithms
+}
+
+// randomProbeKey generates a throwaway public key used only to elicit a
+// KeyError with the known_hosts entries for an address; it is never used to
+// authenticate.
+func randomProbeKey() (ssh.PublicKey, error) {
+	publicKey, _, err := ed25519.GenerateKey(rand.Reader)
+	if err != nil {
+		return nil, err
+	}
+	return ssh.NewPublicKey(publicKey)
+}
+
 // Dial opens a context-aware SSH connection with explicit authentication and
 // strict host-key verification. Passwords are used only during the handshake;
 // callers remain responsible for keeping them out of persisted state and logs.
@@ -94,13 +147,22 @@ func Dial(ctx context.Context, options Options) (*Client, error) {
 	// case difference between the entered destination and the stored entry
 	// would otherwise be rejected as an unknown host.
 	options.Host = strings.ToLower(options.Host)
+	address := net.JoinHostPort(options.Host, strconv.Itoa(options.Port))
+
 	callback := options.HostKeyCallback
+	var preferredAlgorithms []string
 	if callback == nil {
 		var err error
 		callback, err = NewHostKeyCallback(options.KnownHosts)
 		if err != nil {
 			return nil, err
 		}
+		// A server may support several host key types (ed25519, ecdsa, rsa).
+		// Without a preference, the negotiated type can be one that was never
+		// recorded for this specific address, so an otherwise-correct,
+		// unchanged server key would be rejected as unknown. Ask the server to
+		// use a type this address already has a known_hosts entry for.
+		preferredAlgorithms = preferredHostKeyAlgorithms(options.KnownHosts, address)
 	}
 	authMethods, cleanup, err := authenticationMethods(options.Authentication, options.Identity, options.Password)
 	if err != nil {
@@ -113,8 +175,8 @@ func Dial(ctx context.Context, options Options) (*Client, error) {
 
 	configuration := &ssh.ClientConfig{
 		User: options.User, Auth: authMethods, HostKeyCallback: callback, Timeout: options.Timeout,
+		HostKeyAlgorithms: preferredAlgorithms,
 	}
-	address := net.JoinHostPort(options.Host, strconv.Itoa(options.Port))
 	dialAddress := address
 	dialContext := options.DialContext
 	if dialContext == nil {
