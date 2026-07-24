@@ -364,6 +364,18 @@
               </article>
 
               <article class="help-card help-card-wide">
+                <p class="micro-label">Choosing a destination policy</p>
+                <h2>Match the policy to who needs to read the file remotely.</h2>
+                <p>The policy sets permissions at the destination, not on this machine. Pick it based on the account that will actually use the file on the server, such as a service running under its own user.</p>
+                <ul>
+                  <li><strong>Private</strong> only works if that service runs as the same account you connect with.</li>
+                  <li><strong>Service readonly</strong> and <strong>Shared</strong> require your SSH account and the service account to already share a destination group on the server. If they do not, the service loses read access even though the transfer succeeds.</li>
+                  <li><strong>Public readonly</strong> makes the file world-readable at the destination. Use it when there is no shared group and any local account on that server may read the file, matching a common single-user home server setup.</li>
+                  <li><strong>Preserve mode</strong> copies the source file's permission bits as-is. It assumes a POSIX source. From a Windows source there is no equivalent mode to carry over, so it will not reproduce a specific destination permission and should not be used to grant a remote service access.</li>
+                </ul>
+              </article>
+
+              <article class="help-card help-card-wide">
                 <p class="micro-label">Transfer manager</p>
                 <h2>Queue work, then minimize Vericopy.</h2>
                 <p>Each reviewed request becomes a separate transfer job. Up to two jobs run at once and additional work waits in order. Minimized windows keep transferring. Closing Vericopy while work is active asks whether to keep it open or quit and interrupt safely.</p>

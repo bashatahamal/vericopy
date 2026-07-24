@@ -110,12 +110,22 @@ func Dial(ctx context.Context, options Options) (*Client, error) {
 		User: options.User, Auth: authMethods, HostKeyCallback: callback, Timeout: options.Timeout,
 	}
 	address := net.JoinHostPort(options.Host, strconv.Itoa(options.Port))
+	dialAddress := address
 	dialContext := options.DialContext
 	if dialContext == nil {
+		if looksLikeMDNSHost(options.Host) {
+			mdnsTimeout := options.Timeout
+			if mdnsTimeout > 3*time.Second {
+				mdnsTimeout = 3 * time.Second
+			}
+			if ip, mdnsErr := resolveMDNS(options.Host, mdnsTimeout); mdnsErr == nil {
+				dialAddress = net.JoinHostPort(ip.String(), strconv.Itoa(options.Port))
+			}
+		}
 		dialer := &net.Dialer{Timeout: options.Timeout, KeepAlive: 30 * time.Second}
 		dialContext = dialer.DialContext
 	}
-	connection, err := dialContext(ctx, "tcp", address)
+	connection, err := dialContext(ctx, "tcp", dialAddress)
 	if err != nil {
 		return nil, verrors.Wrap(verrors.CodeConnectionFailed,
 			fmt.Sprintf("could not connect to %s", address), err)
