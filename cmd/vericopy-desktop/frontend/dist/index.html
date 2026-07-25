@@ -306,8 +306,33 @@
             </div>
 
             <section class="jobs-panel" aria-label="Transfer jobs">
+              <div class="list-controls" aria-label="Filter and sort transfers">
+                <label class="list-control">
+                  <span class="tip-text">Status</span>
+                  <select id="jobs-filter">
+                    <option value="all">All</option>
+                    <option value="active">Active (running, pausing, cancelling, queued)</option>
+                    <option value="needs_password">Needs password</option>
+                    <option value="paused">Paused</option>
+                    <option value="verified">Verified</option>
+                    <option value="interrupted">Interrupted</option>
+                    <option value="failed">Failed</option>
+                    <option value="canceled">Canceled</option>
+                  </select>
+                </label>
+                <label class="list-control">
+                  <span class="tip-text">Sort</span>
+                  <select id="jobs-sort">
+                    <option value="priority">Needs attention first</option>
+                    <option value="newest">Newest first</option>
+                    <option value="oldest">Oldest first</option>
+                  </select>
+                </label>
+              </div>
               <div id="jobs-list" aria-live="polite"></div>
               <div class="empty-state empty-state-large" id="jobs-empty"><p>No transfers in the manager.</p><span>Review a transfer and add it to the queue. You can then prepare another without waiting.</span></div>
+              <div class="empty-state" id="jobs-filtered-empty" hidden><p>No transfers match this filter.</p></div>
+              <div class="pagination" id="jobs-pagination" hidden></div>
             </section>
 
             <section class="activity-panel" aria-labelledby="history-heading">
@@ -317,6 +342,7 @@
               </div>
               <div id="history-list" aria-live="polite"></div>
               <div class="empty-state empty-state-large" id="history-empty"><p>Nothing recorded yet.</p><span>History stays on this computer and redacts complete source and remote paths.</span></div>
+              <div class="pagination" id="history-pagination" hidden></div>
             </section>
           </section>
 

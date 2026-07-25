@@ -41,6 +41,11 @@ const els = {
   dashboardJobsEmpty: $("#dashboard-jobs-empty"),
   jobsList: $("#jobs-list"),
   jobsEmpty: $("#jobs-empty"),
+  jobsFilteredEmpty: $("#jobs-filtered-empty"),
+  jobsFilter: $("#jobs-filter"),
+  jobsSort: $("#jobs-sort"),
+  jobsPagination: $("#jobs-pagination"),
+  historyPagination: $("#history-pagination"),
   queueRunning: $("#queue-running"),
   queueWaiting: $("#queue-waiting"),
   queueCapacity: $("#queue-capacity"),
@@ -87,6 +92,41 @@ let lastHistory = [];
 let transferQueue = { jobs: [], running: 0, queued: 0, max_concurrent: 2 };
 let retryingJobID = "";
 let jobRefreshTimer = null;
+const PAGE_SIZE = 10;
+let jobsPage = 1;
+let historyPage = 1;
+
+function paginate(items, page, pageSize) {
+  const totalPages = Math.max(1, Math.ceil(items.length / pageSize));
+  const clampedPage = Math.min(Math.max(1, page), totalPages);
+  const start = (clampedPage - 1) * pageSize;
+  return { pageItems: items.slice(start, start + pageSize), page: clampedPage, totalPages };
+}
+
+function renderPagination(container, page, totalPages, onChange) {
+  if (totalPages <= 1) {
+    container.hidden = true;
+    container.replaceChildren();
+    return;
+  }
+  container.hidden = false;
+  const previous = document.createElement("button");
+  previous.type = "button";
+  previous.className = "btn btn-quiet btn-sm";
+  previous.textContent = "Previous";
+  previous.disabled = page <= 1;
+  previous.addEventListener("click", () => onChange(page - 1));
+  const label = document.createElement("span");
+  label.className = "pagination-label";
+  label.textContent = `Page ${page} of ${totalPages}`;
+  const next = document.createElement("button");
+  next.type = "button";
+  next.className = "btn btn-quiet btn-sm";
+  next.textContent = "Next";
+  next.disabled = page >= totalPages;
+  next.addEventListener("click", () => onChange(page + 1));
+  container.replaceChildren(previous, label, next);
+}
 
 /* ---------- theme ---------- */
 
@@ -584,12 +624,33 @@ function jobPriority(status) {
   return 3;
 }
 
+function sortJobs(jobs, sort) {
+  const list = [...jobs];
+  if (sort === "newest") {
+    list.sort((left, right) => new Date(right.created_at || 0) - new Date(left.created_at || 0));
+  } else if (sort === "oldest") {
+    list.sort((left, right) => new Date(left.created_at || 0) - new Date(right.created_at || 0));
+  } else {
+    list.sort((left, right) => {
+      const priority = jobPriority(left.status) - jobPriority(right.status);
+      if (priority) return priority;
+      return new Date(right.created_at || 0) - new Date(left.created_at || 0);
+    });
+  }
+  return list;
+}
+
+// orderedJobs is the dashboard's fixed "needs attention first" order; the
+// Transfers view has its own filter/sort controls layered on top in
+// renderTransferJobs.
 function orderedJobs(jobs) {
-  return [...jobs].sort((left, right) => {
-    const priority = jobPriority(left.status) - jobPriority(right.status);
-    if (priority) return priority;
-    return new Date(right.created_at || 0) - new Date(left.created_at || 0);
-  });
+  return sortJobs(jobs, "priority");
+}
+
+function jobMatchesFilter(job, filter) {
+  if (filter === "all") return true;
+  if (filter === "active") return ["queued", "running", "pausing", "cancelling"].includes(job.status);
+  return job.status === filter;
 }
 
 function jobProgress(job) {
@@ -605,7 +666,7 @@ function jobRow(job, compact = false) {
   const heading = document.createElement("div");
   heading.className = "job-heading";
   const status = document.createElement("span");
-  status.className = `status is-${job.status}`;
+  status.className = `status-pill is-${job.status}`;
   status.textContent = JOB_LABELS[job.status] || job.status || "Unknown";
   const name = document.createElement("strong");
   name.textContent = job.source_name || "Transfer";
@@ -724,10 +785,16 @@ function reconcileJobList(container, jobs, compact) {
 }
 
 function renderTransferJobs() {
-  const jobs = orderedJobs(transferQueue.jobs || []);
+  const allJobs = transferQueue.jobs || [];
+  const filtered = allJobs.filter((job) => jobMatchesFilter(job, els.jobsFilter.value));
+  const sorted = sortJobs(filtered, els.jobsSort.value);
+  const { pageItems: jobs, page, totalPages } = paginate(sorted, jobsPage, PAGE_SIZE);
+  jobsPage = page;
   reconcileJobList(els.jobsList, jobs, false);
-  els.jobsEmpty.hidden = jobs.length > 0;
-  const dashboardJobs = jobs.filter((job) => job.status !== "verified").slice(0, 3);
+  renderPagination(els.jobsPagination, page, totalPages, (nextPage) => { jobsPage = nextPage; renderTransferJobs(); });
+  els.jobsEmpty.hidden = allJobs.length > 0;
+  els.jobsFilteredEmpty.hidden = !(allJobs.length > 0 && sorted.length === 0);
+  const dashboardJobs = orderedJobs(allJobs).filter((job) => job.status !== "verified").slice(0, 3);
   reconcileJobList(els.dashboardJobsList, dashboardJobs, true);
   els.dashboardJobsEmpty.hidden = dashboardJobs.length > 0;
   els.queueRunning.textContent = String(transferQueue.running || 0);
@@ -837,7 +904,7 @@ function historyRow(entry) {
   const row = document.createElement("article");
   row.className = "row";
   const status = document.createElement("span");
-  status.className = `status${entry.status === "verified" ? "" : ` is-${entry.status}`}`;
+  status.className = `status-pill is-${entry.status}`;
   status.textContent = entry.status || "unknown";
   const name = document.createElement("span");
   name.className = "name";
@@ -855,14 +922,21 @@ function historyRow(entry) {
   return row;
 }
 
+function renderHistory() {
+  const { pageItems, page, totalPages } = paginate(lastHistory, historyPage, PAGE_SIZE);
+  historyPage = page;
+  els.historyList.replaceChildren(...pageItems.map(historyRow));
+  renderPagination(els.historyPagination, page, totalPages, (nextPage) => { historyPage = nextPage; renderHistory(); });
+  els.historyEmpty.hidden = lastHistory.length > 0;
+}
+
 async function loadHistory() {
   try {
     lastHistory = await invoke("ListTransferHistory") || [];
   } catch {
     lastHistory = [];
   }
-  els.historyList.replaceChildren(...lastHistory.map(historyRow));
-  els.historyEmpty.hidden = lastHistory.length > 0;
+  renderHistory();
 }
 
 async function clearHistory() {
@@ -929,6 +1003,8 @@ els.startButton.addEventListener("click", startTransfer);
 els.advancedToggle.addEventListener("click", () => setAdvancedOpen(els.advanced.hidden));
 els.saveSession.addEventListener("click", saveSession);
 els.clearHistory.addEventListener("click", clearHistory);
+els.jobsFilter.addEventListener("change", renderTransferJobs);
+els.jobsSort.addEventListener("change", renderTransferJobs);
 els.clearFinishedJobs.addEventListener("click", clearFinishedJobs);
 els.themeToggle.addEventListener("click", () => setTheme(activeTheme() === "dark" ? "light" : "dark"));
 els.authRadios.forEach((radio) => radio.addEventListener("change", () => {
