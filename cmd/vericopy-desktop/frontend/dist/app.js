@@ -49,6 +49,14 @@ const els = {
   historyList: $("#history-list"),
   historyEmpty: $("#history-empty"),
   clearHistory: $("#clear-history"),
+  confirmOverlay: $("#confirm-overlay"),
+  confirmTitle: $("#confirm-title"),
+  confirmMessage: $("#confirm-message"),
+  confirmWordWrap: $("#confirm-word-wrap"),
+  confirmWord: $("#confirm-word"),
+  confirmWordInput: $("#confirm-word-input"),
+  confirmCancel: $("#confirm-cancel"),
+  confirmAccept: $("#confirm-accept"),
   advancedToggle: $("#advanced-toggle"),
   advanced: $("#advanced"),
   reviewButton: $("#review-button"),
@@ -129,6 +137,61 @@ function setNotice(message, kind = "") {
   els.notice.className = `notice${kind ? ` is-${kind}` : ""}`;
   els.notice.textContent = message || "";
 }
+
+/* ---------- confirmation modal ---------- */
+
+let activeConfirm = null;
+
+// confirmAction shows the app's own confirmation modal instead of a native
+// browser/OS popup and resolves to true only if the user actually confirms.
+// Pass requireWord (e.g. "DELETE") for higher-risk actions: the Confirm
+// button stays disabled until the exact word is typed, which is a
+// deliberately higher bar than a single click without demanding the full
+// file or folder name.
+function confirmAction({ title, message, requireWord = null }) {
+  if (activeConfirm) activeConfirm.settle(false);
+  return new Promise((resolve) => {
+    els.confirmTitle.textContent = title;
+    els.confirmMessage.textContent = message;
+    els.confirmWordInput.value = "";
+    if (requireWord) {
+      els.confirmWordWrap.hidden = false;
+      els.confirmWord.textContent = requireWord;
+      els.confirmAccept.disabled = true;
+    } else {
+      els.confirmWordWrap.hidden = true;
+      els.confirmAccept.disabled = false;
+    }
+    els.confirmOverlay.hidden = false;
+    (requireWord ? els.confirmWordInput : els.confirmAccept).focus();
+
+    const settle = (result) => {
+      els.confirmOverlay.hidden = true;
+      activeConfirm = null;
+      resolve(result);
+    };
+    activeConfirm = { settle, requireWord };
+  });
+}
+
+els.confirmCancel.addEventListener("click", () => activeConfirm?.settle(false));
+els.confirmOverlay.addEventListener("click", (event) => {
+  if (event.target === els.confirmOverlay) activeConfirm?.settle(false);
+});
+els.confirmAccept.addEventListener("click", () => {
+  if (!activeConfirm || els.confirmAccept.disabled) return;
+  activeConfirm.settle(true);
+});
+els.confirmWordInput.addEventListener("input", () => {
+  if (!activeConfirm?.requireWord) return;
+  els.confirmAccept.disabled = els.confirmWordInput.value.trim().toUpperCase() !== activeConfirm.requireWord.toUpperCase();
+});
+els.confirmWordInput.addEventListener("keydown", (event) => {
+  if (event.key === "Enter" && !els.confirmAccept.disabled) activeConfirm?.settle(true);
+});
+document.addEventListener("keydown", (event) => {
+  if (event.key === "Escape" && activeConfirm) activeConfirm.settle(false);
+});
 
 /* ---------- form <-> data ---------- */
 
@@ -239,6 +302,11 @@ async function saveSession() {
 }
 
 async function deleteSession(name) {
+  const confirmed = await confirmAction({
+    title: "Remove saved session?",
+    message: `"${name}" will be removed from your saved sessions. This does not affect any files already transferred.`,
+  });
+  if (!confirmed) return;
   try {
     await invoke("DeleteSession", name);
     sessions = sessions.filter((session) => session.name !== name);
@@ -794,7 +862,11 @@ async function loadHistory() {
 }
 
 async function clearHistory() {
-  if (!window.confirm("Clear this computer's redacted transfer history?")) return;
+  const confirmed = await confirmAction({
+    title: "Clear transfer history?",
+    message: "This computer's redacted transfer history will be cleared. It does not affect any files already transferred.",
+  });
+  if (!confirmed) return;
   try {
     await invoke("ClearTransferHistory");
     await loadHistory();
