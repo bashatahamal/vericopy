@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -148,6 +149,74 @@ func TestCancelQueuedTransferDoesNotRunIt(t *testing.T) {
 	if err != nil || !removed || len(service.ListTransferJobs().Jobs) != 0 {
 		t.Fatalf("terminal job was not removed: removed=%t err=%v", removed, err)
 	}
+}
+
+func TestPauseQueuedTransferDoesNotRunIt(t *testing.T) {
+	service, source := queueTestService(t)
+	service.maxJobs = 0
+	job, err := service.EnqueueTransfer(TransferRequest{
+		Source: source, Destination: "transfer@example.com:/srv/report.pdf", Authentication: "key",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !service.PauseTransferJob(job.ID) {
+		t.Fatal("queued job was not paused")
+	}
+	queue := service.ListTransferJobs()
+	if len(queue.Jobs) != 1 || queue.Jobs[0].Status != JobPaused {
+		t.Fatalf("unexpected paused queue: %#v", queue)
+	}
+}
+
+// TestPauseRunningTransferSurvivesRetry is the scenario a user reaches for a
+// dedicated Pause button over Cancel: a job is deliberately stopped mid
+// transfer, ends up Paused rather than Canceled, and Retry picks it back up
+// using the partial bytes already on the server instead of starting over.
+func TestPauseRunningTransferSurvivesRetry(t *testing.T) {
+	service, source := queueTestService(t)
+	started := make(chan struct{})
+	var startedOnce sync.Once
+	release := make(chan struct{})
+	service.executor = func(ctx context.Context, _ preparedTransfer, _ string, progress func(transfer.Progress)) (transfer.Result, error) {
+		progress(transfer.Progress{Phase: "uploading", Source: source, TransferredBytes: 4, TotalBytes: 8})
+		startedOnce.Do(func() { close(started) })
+		select {
+		case <-release:
+			return transfer.Result{Files: 1, Bytes: 8, Verified: true}, nil
+		case <-ctx.Done():
+			return transfer.Result{}, ctx.Err()
+		}
+	}
+	job, err := service.EnqueueTransfer(TransferRequest{
+		Source: source, Destination: "transfer@example.com:/srv/report.pdf", Authentication: "key", Resume: true,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case <-started:
+	case <-time.After(3 * time.Second):
+		t.Fatal("transfer did not start")
+	}
+	if !service.PauseTransferJob(job.ID) {
+		t.Fatal("running job was not paused")
+	}
+	waitForJobs(t, service, func(queue TransferQueue) bool {
+		return len(queue.Jobs) == 1 && queue.Jobs[0].Status == JobPaused
+	})
+	close(release)
+
+	retried, err := service.RetryTransferJob(job.ID, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if retried.Status != JobQueued {
+		t.Fatalf("retried job status = %q, want %q", retried.Status, JobQueued)
+	}
+	waitForJobs(t, service, func(queue TransferQueue) bool {
+		return len(queue.Jobs) == 1 && queue.Jobs[0].Status == JobVerified
+	})
 }
 
 func queueTestService(t *testing.T) (*Service, string) {

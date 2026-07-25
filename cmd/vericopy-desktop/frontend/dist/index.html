@@ -403,8 +403,9 @@
                 <h2>Queue work, then minimize Vericopy.</h2>
                 <p>Each reviewed request becomes a separate transfer job. Up to two jobs run at once and additional work waits in order. Minimized windows keep transferring. Closing Vericopy while work is active asks whether to keep it open or quit and interrupt safely.</p>
                 <ul>
-                  <li>Canceling keeps compatible partial state so a later retry can resume.</li>
-                  <li>Jobs restored after restart wait for an explicit retry.</li>
+                  <li><strong>Pause</strong> stops a job you intend to come back to. <strong>Cancel</strong> stops one you do not. Both keep compatible partial state, so either can be picked up again with Retry.</li>
+                  <li>A paused job survives fully quitting Vericopy, restarting the machine, or losing the connection. Reopen Vericopy and press Retry to continue it, with Resume partial turned on, from where it left off rather than from the beginning.</li>
+                  <li>Jobs still queued or running when Vericopy last closed come back as Paused, waiting for an explicit retry.</li>
                   <li>Password jobs require the password again because Vericopy never stores it.</li>
                 </ul>
               </article>
