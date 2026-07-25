@@ -75,6 +75,7 @@ type persistedTransferRequest struct {
 	Recursive      bool   `json:"recursive"`
 	Resume         bool   `json:"resume"`
 	Overwrite      bool   `json:"overwrite"`
+	NoClobber      bool   `json:"no_clobber"`
 	PreserveTime   bool   `json:"preserve_time"`
 }
 
@@ -96,7 +97,7 @@ func persistedRequest(request TransferRequest) persistedTransferRequest {
 		Identity: request.Identity, KnownHosts: request.KnownHosts, Port: request.Port,
 		Permissions: request.Permissions, Group: request.Group, ReadableBy: request.ReadableBy,
 		Recursive: request.Recursive, Resume: request.Resume, Overwrite: request.Overwrite,
-		PreserveTime: request.PreserveTime,
+		NoClobber: request.NoClobber, PreserveTime: request.PreserveTime,
 	}
 }
 
@@ -106,7 +107,7 @@ func (request persistedTransferRequest) liveRequest() TransferRequest {
 		Identity: request.Identity, KnownHosts: request.KnownHosts, Port: request.Port,
 		Permissions: request.Permissions, Group: request.Group, ReadableBy: request.ReadableBy,
 		Recursive: request.Recursive, Resume: request.Resume, Overwrite: request.Overwrite,
-		PreserveTime: request.PreserveTime,
+		NoClobber: request.NoClobber, PreserveTime: request.PreserveTime,
 	}
 }
 

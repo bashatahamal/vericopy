@@ -206,7 +206,7 @@ func newCopyCommand(globals *Globals) *cobra.Command {
 	command.Flags().BoolVarP(&flags.Recursive, "recursive", "r", false, "copy a directory tree")
 	command.Flags().BoolVar(&flags.Resume, "resume", false, "resume only compatible partial state")
 	command.Flags().BoolVar(&flags.Overwrite, "overwrite", false, "replace an existing destination")
-	command.Flags().BoolVar(&flags.NoClobber, "no-clobber", false, "explicitly reject an existing destination")
+	command.Flags().BoolVar(&flags.NoClobber, "no-clobber", false, "skip files and directories that already exist at the destination instead of failing")
 	command.Flags().BoolVar(&flags.PreserveTime, "preserve-time", false, "preserve source modification times where supported")
 	command.Flags().StringVar(&flags.Permission, "permissions", "private", "destination permission policy")
 	command.Flags().StringVar(&flags.FileMode, "file-mode", "", "octal file-mode override")
@@ -288,6 +288,9 @@ func runCopy(ctx context.Context, globals *Globals, flags *copyFlags, sourceArg,
 		}
 	}
 	human := fmt.Sprintf("Transferred %d file(s), %d bytes to %s\nSHA-256: %s", result.Files, result.Bytes, result.Destination, result.SHA256)
+	if result.SkippedFiles > 0 {
+		human += fmt.Sprintf("\nSkipped %d file(s) that already existed", result.SkippedFiles)
+	}
 	if result.DryRun {
 		human = fmt.Sprintf("Dry run: %d file(s), %d bytes would be transferred to %s", result.Files, result.Bytes, result.Destination)
 	}

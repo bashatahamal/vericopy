@@ -65,6 +65,7 @@ type Result struct {
 	Source       string `json:"source"`
 	Destination  string `json:"destination"`
 	Files        int    `json:"files"`
+	SkippedFiles int    `json:"skipped_files,omitempty"`
 	Bytes        int64  `json:"bytes"`
 	SHA256       string `json:"sha256,omitempty"`
 	ResumedBytes int64  `json:"resumed_bytes,omitempty"`
@@ -132,10 +133,10 @@ func (e Engine) copyDirectory(ctx context.Context, source, destination string, o
 	if existing, err := e.Remote.Lstat(destination); err == nil && existing.Mode()&fs.ModeSymlink != 0 {
 		return Result{}, verrors.New(verrors.CodeUnsupportedFileType,
 			fmt.Sprintf("remote symbolic link %q is not followed", destination))
-	} else if err == nil && !options.Overwrite {
+	} else if err == nil && !options.Overwrite && !options.NoClobber {
 		return Result{}, verrors.New(verrors.CodeDestinationExists,
 			fmt.Sprintf("destination directory %q already exists", destination)).WithHint(
-			"Choose another destination or pass --overwrite to merge explicitly.")
+			"Choose another destination, pass --overwrite to merge explicitly, or pass --no-clobber to add only what is missing.")
 	} else if err != nil && !isNotExist(err) {
 		return Result{}, verrors.Wrap(verrors.CodeDestinationNotWritable, "the destination directory could not be inspected", err)
 	}
@@ -196,7 +197,8 @@ func (e Engine) copyDirectory(ctx context.Context, source, destination string, o
 		if err != nil {
 			return err
 		}
-		result.Files++
+		result.Files += fileResult.Files
+		result.SkippedFiles += fileResult.SkippedFiles
 		result.Bytes += fileResult.Bytes
 		result.ResumedBytes += fileResult.ResumedBytes
 		return nil
@@ -239,10 +241,16 @@ func (e Engine) copyFile(ctx context.Context, source, destination string, option
 					fmt.Sprintf("remote symbolic link %q is not followed", destination))
 			}
 		}
+		if statErr == nil && options.NoClobber {
+			e.report(options, Progress{
+				Phase: "skipped", Source: source, Destination: destination, TotalBytes: initial.Size(),
+			})
+			return Result{Source: source, Destination: destination, SkippedFiles: 1, DryRun: options.DryRun}, nil
+		}
 		if statErr == nil && !options.Overwrite {
 			return Result{}, verrors.New(verrors.CodeDestinationExists,
 				fmt.Sprintf("destination %q already exists", destination)).WithHint(
-				"Choose another destination or pass --overwrite explicitly.")
+				"Choose another destination, pass --overwrite explicitly, or pass --no-clobber to skip it and copy the rest.")
 		}
 		if statErr != nil && !isNotExist(statErr) {
 			return Result{}, verrors.Wrap(verrors.CodeDestinationNotWritable, "the destination could not be inspected", statErr)

@@ -30,6 +30,7 @@ const els = {
   recursive: $("#recursive"),
   resume: $("#resume"),
   overwrite: $("#overwrite"),
+  noClobber: $("#no-clobber"),
   preserveTime: $("#preserve-time"),
   sessionChips: $("#session-chips"),
   sessionName: $("#session-name"),
@@ -146,6 +147,7 @@ function requestFromForm() {
     recursive: els.recursive.checked,
     resume: els.resume.checked,
     overwrite: els.overwrite.checked,
+    no_clobber: els.noClobber.checked,
     preserve_time: els.preserveTime.checked,
   };
 }
@@ -163,6 +165,7 @@ function requestToForm(request) {
   els.recursive.checked = !!request.recursive;
   els.resume.checked = !!request.resume;
   els.overwrite.checked = !!request.overwrite;
+  els.noClobber.checked = !!request.no_clobber;
   els.preserveTime.checked = !!request.preserve_time;
   setAdvancedOpen(!!(request.known_hosts || request.group || request.readable_by));
 }
@@ -308,6 +311,7 @@ async function migrateProfilesOnce() {
         recursive: false,
         resume: true,
         overwrite: false,
+        no_clobber: false,
         preserve_time: false,
       });
       sessions.push(savedSession);
@@ -347,6 +351,7 @@ function displayReview(review) {
   const options = [
     review.resume && "resume",
     review.overwrite && "overwrite",
+    review.no_clobber && "skip existing",
     review.preserve_time && "preserve mtime",
   ].filter(Boolean).join(" · ") || "none";
   addReviewRow("Options", options);
@@ -800,10 +805,12 @@ $("#choose-file").addEventListener("click", () => choose("SelectSourceFile", els
 $("#choose-folder").addEventListener("click", () => choose("SelectSourceDirectory", els.source, true));
 $("#choose-identity").addEventListener("click", () => choose("SelectIdentityFile", els.identity));
 [els.source, els.destination, els.port, els.permissions, els.password, els.identity, els.knownHosts, els.group, els.readableBy,
- els.recursive, els.resume, els.overwrite, els.preserveTime].forEach((field) => {
+ els.recursive, els.resume, els.overwrite, els.noClobber, els.preserveTime].forEach((field) => {
   field.addEventListener("input", () => { if (field !== els.password) retryingJobID = ""; invalidateReview(); });
   field.addEventListener("change", () => { if (field !== els.password) retryingJobID = ""; invalidateReview(); });
 });
+els.overwrite.addEventListener("change", () => { if (els.overwrite.checked) els.noClobber.checked = false; });
+els.noClobber.addEventListener("change", () => { if (els.noClobber.checked) els.overwrite.checked = false; });
 
 initializeTheme();
 subscribeToProgress();

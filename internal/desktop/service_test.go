@@ -66,6 +66,35 @@ func TestReviewTransferRejectsUnknownAuthentication(t *testing.T) {
 	}
 }
 
+func TestReviewTransferRejectsOverwriteAndNoClobberTogether(t *testing.T) {
+	source := filepath.Join(t.TempDir(), "annual-report.pdf")
+	if err := os.WriteFile(source, []byte("report"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	_, err := desktop.NewService().ReviewTransfer(desktop.TransferRequest{
+		Source: source, Destination: "transfer@example.com:/srv/shared/annual-report.pdf", Overwrite: true, NoClobber: true,
+	})
+	if err == nil || verrors.As(err).Code != verrors.CodeInvalidArguments {
+		t.Fatalf("conflicting overwrite and no-clobber was accepted: %v", err)
+	}
+}
+
+func TestReviewTransferRetainsNoClobber(t *testing.T) {
+	source := filepath.Join(t.TempDir(), "annual-report.pdf")
+	if err := os.WriteFile(source, []byte("report"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	review, err := desktop.NewService().ReviewTransfer(desktop.TransferRequest{
+		Source: source, Destination: "transfer@example.com:/srv/shared/annual-report.pdf", NoClobber: true,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !review.NoClobber {
+		t.Fatalf("no-clobber was not retained in the review: %#v", review)
+	}
+}
+
 func TestStartTransferRequiresPasswordBeforeConnecting(t *testing.T) {
 	source := filepath.Join(t.TempDir(), "annual-report.pdf")
 	if err := os.WriteFile(source, []byte("report"), 0o600); err != nil {
