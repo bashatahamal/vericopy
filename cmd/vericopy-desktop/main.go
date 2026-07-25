@@ -82,6 +82,10 @@ func (b *Bridge) CancelTransferJob(id string) bool {
 	return b.service.CancelTransferJob(id)
 }
 
+func (b *Bridge) PauseTransferJob(id string) bool {
+	return b.service.PauseTransferJob(id)
+}
+
 func (b *Bridge) RemoveTransferJob(id string) (bool, error) {
 	return b.service.RemoveTransferJob(id)
 }

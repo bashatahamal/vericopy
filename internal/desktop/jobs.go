@@ -21,6 +21,7 @@ const (
 	JobQueued        = "queued"
 	JobRunning       = "running"
 	JobCancelling    = "cancelling"
+	JobPausing       = "pausing"
 	JobPaused        = "paused"
 	JobNeedsPassword = "needs_password"
 	JobVerified      = "verified"
@@ -90,6 +91,7 @@ type runtimeJob struct {
 	password        string
 	cancel          context.CancelFunc
 	cancelRequested bool
+	pauseRequested  bool
 }
 
 func persistedRequest(request TransferRequest) persistedTransferRequest {
@@ -272,11 +274,12 @@ func (s *Service) CancelTransferJob(id string) bool {
 		s.emitJobProgress(record.Job, JobCanceled, record.Job.Message)
 		return true
 	}
-	if job.record.Job.Status != JobRunning && job.record.Job.Status != JobCancelling {
+	if job.record.Job.Status != JobRunning && job.record.Job.Status != JobCancelling && job.record.Job.Status != JobPausing {
 		s.mu.Unlock()
 		return false
 	}
 	job.cancelRequested = true
+	job.pauseRequested = false
 	job.record.Job.Status = JobCancelling
 	job.record.Job.Phase = JobCancelling
 	job.record.Job.Message = "Cancellation requested; compatible partial state will be kept"
@@ -284,6 +287,48 @@ func (s *Service) CancelTransferJob(id string) bool {
 	record := job.record
 	s.mu.Unlock()
 	s.emitJobProgress(record.Job, JobCancelling, record.Job.Message)
+	if cancel != nil {
+		cancel()
+	}
+	return true
+}
+
+// PauseTransferJob pauses a queued or running job. Compatible partial state
+// remains available for a later Retry, exactly like a canceled job, but the
+// job is marked Paused rather than Canceled so its intent stays clear:
+// this is expected to be picked back up, not abandoned.
+func (s *Service) PauseTransferJob(id string) bool {
+	s.mu.Lock()
+	job := s.jobs[id]
+	if job == nil {
+		s.mu.Unlock()
+		return false
+	}
+	if job.record.Job.Status == JobQueued || job.record.Job.Status == JobNeedsPassword {
+		job.password = ""
+		job.record.Job.Status = JobPaused
+		job.record.Job.Phase = JobPaused
+		job.record.Job.CompletedAt = time.Now().UTC()
+		job.record.Job.Message = "Paused before transfer; resume when ready"
+		record := job.record
+		s.mu.Unlock()
+		_ = s.state.saveTransferJob(record)
+		s.emitJobProgress(record.Job, JobPaused, record.Job.Message)
+		return true
+	}
+	if job.record.Job.Status != JobRunning && job.record.Job.Status != JobPausing {
+		s.mu.Unlock()
+		return false
+	}
+	job.pauseRequested = true
+	job.cancelRequested = false
+	job.record.Job.Status = JobPausing
+	job.record.Job.Phase = JobPausing
+	job.record.Job.Message = "Pausing; compatible partial state will be kept"
+	cancel := job.cancel
+	record := job.record
+	s.mu.Unlock()
+	s.emitJobProgress(record.Job, JobPausing, record.Job.Message)
 	if cancel != nil {
 		cancel()
 	}
@@ -350,7 +395,7 @@ func (s *Service) restoreJobs() {
 	}
 	for _, record := range records {
 		switch record.Job.Status {
-		case JobQueued, JobRunning, JobCancelling:
+		case JobQueued, JobRunning, JobCancelling, JobPausing:
 			if record.Job.Authentication == sshclient.AuthenticationPassword {
 				record.Job.Status = JobNeedsPassword
 				record.Job.Phase = JobNeedsPassword
@@ -481,7 +526,11 @@ func (s *Service) finishJob(id string, prepared preparedTransfer, result transfe
 		job.record.Job.Status = JobFailed
 		job.record.Job.Phase = JobFailed
 		job.record.Job.Message = diagnostic.Message
-		if job.cancelRequested {
+		if job.pauseRequested {
+			job.record.Job.Status = JobPaused
+			job.record.Job.Phase = JobPaused
+			job.record.Job.Message = "Paused; resume when ready"
+		} else if job.cancelRequested {
 			job.record.Job.Status = JobCanceled
 			job.record.Job.Phase = JobCanceled
 			job.record.Job.Message = "Transfer canceled; compatible partial state kept"

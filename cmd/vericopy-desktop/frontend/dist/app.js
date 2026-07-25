@@ -509,7 +509,7 @@ function setManagerNotice(message, kind = "") {
 }
 
 function jobPriority(status) {
-  if (status === "running" || status === "cancelling") return 0;
+  if (status === "running" || status === "cancelling" || status === "pausing") return 0;
   if (status === "queued") return 1;
   if (status === "needs_password" || status === "paused") return 2;
   return 3;
@@ -557,7 +557,7 @@ function jobRow(job, compact = false) {
     row.append(detail);
 
     const progress = jobProgress(job);
-    if (progress && (job.status === "running" || job.status === "cancelling")) {
+    if (progress && (job.status === "running" || job.status === "cancelling" || job.status === "pausing")) {
       const progressWrap = document.createElement("div");
       progressWrap.className = "job-progress";
       const bar = document.createElement("div");
@@ -574,7 +574,16 @@ function jobRow(job, compact = false) {
 
     const actions = document.createElement("div");
     actions.className = "job-actions";
-    if (["queued", "running", "cancelling", "paused", "needs_password"].includes(job.status)) {
+    if (["queued", "running", "pausing"].includes(job.status)) {
+      const pause = document.createElement("button");
+      pause.type = "button";
+      pause.className = "btn btn-secondary btn-sm";
+      pause.textContent = job.status === "pausing" ? "Pausing…" : "Pause";
+      pause.disabled = job.status === "pausing";
+      pause.addEventListener("click", () => pauseJob(job.id));
+      actions.append(pause);
+    }
+    if (["queued", "running", "cancelling", "pausing", "paused", "needs_password"].includes(job.status)) {
       const cancel = document.createElement("button");
       cancel.type = "button";
       cancel.className = "btn btn-quiet btn-sm";
@@ -632,6 +641,16 @@ async function cancelJob(id) {
   try {
     const canceled = await invoke("CancelTransferJob", id);
     setManagerNotice(canceled ? "Cancellation requested. Compatible partial state will be kept." : "That job is no longer active.");
+    await loadTransferJobs();
+  } catch (error) {
+    setManagerNotice(error?.message || String(error), "error");
+  }
+}
+
+async function pauseJob(id) {
+  try {
+    const paused = await invoke("PauseTransferJob", id);
+    setManagerNotice(paused ? "Pausing. Retry the job whenever you are ready to continue." : "That job is no longer active.");
     await loadTransferJobs();
   } catch (error) {
     setManagerNotice(error?.message || String(error), "error");
