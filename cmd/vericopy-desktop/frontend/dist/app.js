@@ -71,6 +71,12 @@ const els = {
   reviewPanel: $("#review-panel"),
   reviewTitle: $("#review-title"),
   reviewList: $("#review-list"),
+  previewDestination: $("#preview-destination"),
+  previewNotice: $("#preview-notice"),
+  previewResult: $("#preview-result"),
+  previewPath: $("#preview-path"),
+  previewEntries: $("#preview-entries"),
+  previewEmpty: $("#preview-empty"),
   reviewSecurity: $("#review-security"),
   progressPanel: $("#progress-panel"),
   progressPhase: $("#progress-phase"),
@@ -480,6 +486,60 @@ function invalidateReview() {
   els.reviewPanel.hidden = true;
   els.progressPanel.hidden = true;
   setNotice("");
+}
+
+function setPreviewNotice(message, kind = "") {
+  els.previewNotice.hidden = !message;
+  els.previewNotice.className = `notice${kind ? ` is-${kind}` : ""}`;
+  els.previewNotice.textContent = message || "";
+}
+
+function previewEntryRow(entry) {
+  const row = document.createElement("li");
+  const kind = document.createElement("span");
+  kind.className = "kind";
+  kind.textContent = entry.is_dir ? "📁" : "📄";
+  const name = document.createElement("span");
+  name.className = "entry-name";
+  name.textContent = entry.name;
+  row.append(kind, name);
+  if (!entry.is_dir) {
+    const size = document.createElement("span");
+    size.className = "entry-size";
+    size.textContent = formatBytes(entry.size);
+    row.append(size);
+  }
+  return row;
+}
+
+async function previewDestination() {
+  const request = requestFromForm();
+  if (!request.source) { setNotice("Source is required.", "error"); els.source.focus(); return; }
+  if (!request.destination) { setNotice("Destination is required.", "error"); els.destination.focus(); return; }
+  if (request.authentication === "password" && !els.password.value) {
+    setNotice("Enter the SSH password for this connection.", "error");
+    els.password.focus();
+    return;
+  }
+  els.previewDestination.disabled = true;
+  els.previewResult.hidden = true;
+  setPreviewNotice("Connecting…");
+  try {
+    const preview = await invoke("PreviewDestination", request);
+    setPreviewNotice("Connected. Authentication and the SFTP subsystem both work.", "success");
+    els.previewPath.textContent = preview.will_create
+      ? `${preview.path} — will be created; showing its parent`
+      : preview.is_directory
+        ? preview.path
+        : `${preview.path} — showing the containing folder; the exact destination already exists as a file`;
+    els.previewEntries.replaceChildren(...(preview.entries || []).map(previewEntryRow));
+    els.previewEmpty.hidden = (preview.entries || []).length > 0;
+    els.previewResult.hidden = false;
+  } catch (error) {
+    setPreviewNotice(error?.message || String(error), "error");
+  } finally {
+    els.previewDestination.disabled = false;
+  }
 }
 
 async function reviewTransfer() {
@@ -1035,6 +1095,7 @@ document.querySelectorAll("[data-open-activity]").forEach((button) => button.add
 document.querySelectorAll("[data-open-help]").forEach((button) => button.addEventListener("click", () => showView("help")));
 els.form.addEventListener("submit", (event) => { event.preventDefault(); reviewTransfer(); });
 els.startButton.addEventListener("click", startTransfer);
+els.previewDestination.addEventListener("click", previewDestination);
 els.advancedToggle.addEventListener("click", () => setAdvancedOpen(els.advanced.hidden));
 els.saveSession.addEventListener("click", saveSession);
 els.clearHistory.addEventListener("click", clearHistory);

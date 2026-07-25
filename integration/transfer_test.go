@@ -13,6 +13,7 @@ import (
 
 	"github.com/bashatahamal/vericopy/internal/access"
 	nativesftp "github.com/bashatahamal/vericopy/internal/backend/sftp"
+	"github.com/bashatahamal/vericopy/internal/desktop"
 	"github.com/bashatahamal/vericopy/internal/permissions"
 	"github.com/bashatahamal/vericopy/internal/remotehash"
 	"github.com/bashatahamal/vericopy/internal/sshclient"
@@ -204,6 +205,60 @@ func TestRemoteHasherHandlesHostileFilenames(t *testing.T) {
 	}
 	if info.Size() != int64(len("tricky path content")) {
 		t.Fatalf("unexpected remote file size: %d", info.Size())
+	}
+}
+
+func TestPreviewDestinationAgainstRealServer(t *testing.T) {
+	environment := integrationEnvironment(t)
+	_, remoteFS := connect(t, environment)
+	destination := "/data/preview-" + strconv.Itoa(os.Getpid())
+	if err := remoteFS.MkdirAll(destination); err != nil {
+		t.Fatal(err)
+	}
+	sourceFile := filepath.Join(t.TempDir(), "existing.bin")
+	if err := os.WriteFile(sourceFile, []byte("existing content"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	policy, _ := permissions.Resolve("private", "", "")
+	if _, err := (transfer.Engine{Remote: remoteFS}).Copy(context.Background(), sourceFile, destination+"/existing.bin", transfer.Options{Policy: policy}); err != nil {
+		t.Fatal(err)
+	}
+
+	service := desktop.NewService()
+	t.Cleanup(service.Close)
+	preview, err := service.PreviewDestination(desktop.TransferRequest{
+		Source:      sourceFile,
+		Destination: "transfer@" + environment.host + ":" + destination,
+		Port:        environment.port, Identity: environment.identity, KnownHosts: environment.knownHosts,
+		Authentication: "key",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !preview.Exists || !preview.IsDirectory || preview.WillCreate {
+		t.Fatalf("unexpected preview for an existing directory: %#v", preview)
+	}
+	found := false
+	for _, entry := range preview.Entries {
+		if entry.Name == "existing.bin" && !entry.IsDir && entry.Size == int64(len("existing content")) {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("expected to see the file already copied there: %#v", preview.Entries)
+	}
+
+	missingPreview, err := service.PreviewDestination(desktop.TransferRequest{
+		Source:      sourceFile,
+		Destination: "transfer@" + environment.host + ":" + destination + "/does-not-exist-yet",
+		Port:        environment.port, Identity: environment.identity, KnownHosts: environment.knownHosts,
+		Authentication: "key",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if missingPreview.Exists || !missingPreview.WillCreate || missingPreview.Path != destination {
+		t.Fatalf("unexpected preview for a not-yet-created destination: %#v", missingPreview)
 	}
 }
 
