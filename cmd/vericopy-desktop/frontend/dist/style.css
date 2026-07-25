@@ -37,7 +37,9 @@
   --accent-ink: #075c46;
   --accent-wash: #e4eee9;
   --gold: #9b6815;
+  --gold-wash: #f3e9d6;
   --danger: #9a4333;
+  --danger-wash: #f4e0da;
   --serif: "Vericopy Serif", "Iowan Old Style", Georgia, serif;
   --sans: "Vericopy Sans", "Segoe UI", Arial, sans-serif;
   --mono: "Vericopy Mono", Consolas, monospace;
@@ -61,7 +63,9 @@
     --accent-ink: #6bc2a5;
     --accent-wash: #1d332c;
     --gold: #d1a04c;
+    --gold-wash: #3a2f1c;
     --danger: #df826f;
+    --danger-wash: #3a231d;
     --shadow: 0 1px 1px rgba(0, 0, 0, 0.18), 0 10px 28px rgba(0, 0, 0, 0.14);
     color-scheme: dark;
   }
@@ -81,7 +85,9 @@
   --accent-ink: #075c46;
   --accent-wash: #e4eee9;
   --gold: #9b6815;
+  --gold-wash: #f3e9d6;
   --danger: #9a4333;
+  --danger-wash: #f4e0da;
   --shadow: 0 1px 1px rgba(28, 26, 23, 0.04), 0 8px 24px rgba(28, 26, 23, 0.035);
   color-scheme: light;
 }
@@ -100,7 +106,9 @@
   --accent-ink: #6bc2a5;
   --accent-wash: #1d332c;
   --gold: #d1a04c;
+  --gold-wash: #3a2f1c;
   --danger: #df826f;
+  --danger-wash: #3a231d;
   --shadow: 0 1px 1px rgba(0, 0, 0, 0.18), 0 10px 28px rgba(0, 0, 0, 0.14);
   color-scheme: dark;
 }
@@ -396,6 +404,30 @@ a { color: var(--accent-ink); text-decoration: none; }
 
 .row { display: grid; grid-template-columns: 92px minmax(100px, auto) minmax(0, 1fr) auto auto; align-items: baseline; gap: 12px; border-top: 1px solid var(--line); padding: 13px 0; }
 .row:last-child { border-bottom: 1px solid var(--line); }
+.status-pill {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 99px;
+  padding: 3px 9px;
+  background: var(--accent-wash);
+  color: var(--accent-ink);
+  font-family: var(--mono);
+  font-size: 9.5px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.status-pill.is-queued, .status-pill.is-paused, .status-pill.is-needs_password,
+.status-pill.is-pausing, .status-pill.is-cancelling {
+  background: var(--gold-wash);
+  color: var(--gold);
+}
+.status-pill.is-failed, .status-pill.is-interrupted, .status-pill.is-canceled {
+  background: var(--danger-wash);
+  color: var(--danger);
+}
+
 .row .status { color: var(--accent-ink); font-family: var(--mono); font-size: 9.5px; letter-spacing: 0.06em; text-transform: uppercase; }
 .row .status.is-failed, .row .status.is-interrupted { color: var(--danger); }
 .row .name { overflow: hidden; font-size: 12.5px; font-weight: 580; text-overflow: ellipsis; white-space: nowrap; }
@@ -466,6 +498,24 @@ a { color: var(--accent-ink); text-decoration: none; }
 .field input:focus, .field select:focus { border-color: var(--accent); }
 .field-row { display: grid; grid-template-columns: minmax(0, 1fr) 88px 190px; gap: 12px; }
 .field-note { margin: 7px 0 0; color: var(--ink-faint); font-size: 11px; line-height: 1.48; }
+
+.list-controls { display: flex; flex-wrap: wrap; gap: 16px; margin-bottom: 14px; }
+.list-control { display: flex; align-items: center; gap: 8px; }
+.list-control .tip-text { color: var(--ink-faint); font-size: 11px; }
+.list-control select {
+  height: 30px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 0 8px;
+  background: var(--surface-raised);
+  color: var(--ink);
+  font-size: 12px;
+}
+.list-control select:hover { border-color: var(--line-strong); }
+.list-control select:focus { border-color: var(--accent); outline: none; }
+
+.pagination { display: flex; align-items: center; justify-content: center; gap: 14px; margin-top: 14px; }
+.pagination-label { color: var(--ink-faint); font-family: var(--mono); font-size: 10.5px; }
 
 .auth-card { border: 1px solid var(--line); border-left: 3px solid var(--accent); border-radius: var(--radius); padding: 19px 20px 20px; background: var(--surface); }
 .auth-heading { display: flex; align-items: start; justify-content: space-between; gap: 20px; }
