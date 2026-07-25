@@ -7,7 +7,9 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"path"
 	"path/filepath"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -174,6 +176,94 @@ type TransferReview struct {
 type TransferResult struct {
 	Result  transfer.Result `json:"result"`
 	Summary string          `json:"summary"`
+}
+
+// DestinationPreviewEntry is one remote directory entry shown during review.
+type DestinationPreviewEntry struct {
+	Name    string    `json:"name"`
+	IsDir   bool      `json:"is_dir"`
+	Size    int64     `json:"size"`
+	ModTime time.Time `json:"mod_time"`
+}
+
+// DestinationPreview reports what a real, authenticated connection found at
+// the reviewed destination. Unlike ReviewTransfer, this dials SSH and reads
+// remote metadata; it never writes anything.
+type DestinationPreview struct {
+	Path        string                    `json:"path"`
+	Exists      bool                      `json:"exists"`
+	IsDirectory bool                      `json:"is_directory"`
+	WillCreate  bool                      `json:"will_create"`
+	Entries     []DestinationPreviewEntry `json:"entries"`
+}
+
+// PreviewDestination connects using the reviewed request's authentication
+// and lists what is actually at the destination, or its parent directory
+// when the destination itself does not exist yet. A successful call is
+// itself proof the authentication and connection details work, ahead of
+// queuing the transfer. It never writes to the destination.
+func (s *Service) PreviewDestination(request TransferRequest) (DestinationPreview, error) {
+	password := request.Password
+	request.Password = ""
+	prepared, err := prepare(request)
+	if err != nil {
+		return DestinationPreview{}, err
+	}
+	if prepared.request.Authentication == sshclient.AuthenticationPassword && password == "" {
+		return DestinationPreview{}, verrors.New(verrors.CodeAuthenticationFailed,
+			"enter the SSH password before previewing the destination")
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+	sshConnection, err := sshclient.Dial(ctx, sshclient.Options{
+		User: prepared.destination.User, Host: prepared.destination.Host, Port: prepared.request.Port,
+		KnownHosts: prepared.request.KnownHosts, Identity: prepared.request.Identity,
+		Authentication: prepared.request.Authentication, Password: password, Timeout: 15 * time.Second,
+	})
+	password = ""
+	if err != nil {
+		return DestinationPreview{}, err
+	}
+	defer sshConnection.Close()
+	remoteFS, err := nativesftp.New(sshConnection)
+	if err != nil {
+		return DestinationPreview{}, verrors.Wrap(verrors.CodeConnectionFailed, "the server did not accept the SFTP subsystem", err)
+	}
+	defer remoteFS.Close()
+
+	destinationPath := prepared.destination.Path
+	preview := DestinationPreview{}
+	listPath := destinationPath
+	if info, statErr := remoteFS.Lstat(destinationPath); statErr == nil {
+		preview.Exists = true
+		preview.IsDirectory = info.IsDir()
+		if !info.IsDir() {
+			listPath = path.Dir(destinationPath)
+		}
+	} else {
+		preview.WillCreate = true
+		listPath = path.Dir(destinationPath)
+	}
+
+	entries, err := remoteFS.ReadDir(listPath)
+	if err != nil {
+		return DestinationPreview{}, verrors.Wrap(verrors.CodeDestinationNotReadable,
+			fmt.Sprintf("could not list %q", listPath), err)
+	}
+	preview.Path = listPath
+	for _, entry := range entries {
+		preview.Entries = append(preview.Entries, DestinationPreviewEntry{
+			Name: entry.Name(), IsDir: entry.IsDir(), Size: entry.Size(), ModTime: entry.ModTime(),
+		})
+	}
+	sort.Slice(preview.Entries, func(i, j int) bool {
+		if preview.Entries[i].IsDir != preview.Entries[j].IsDir {
+			return preview.Entries[i].IsDir
+		}
+		return preview.Entries[i].Name < preview.Entries[j].Name
+	})
+	return preview, nil
 }
 
 // TransferProgress is a per-file update for the desktop UI. Directory

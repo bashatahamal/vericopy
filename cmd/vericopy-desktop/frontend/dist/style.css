@@ -592,6 +592,30 @@ a { color: var(--accent-ink); text-decoration: none; }
 @keyframes vc-slide { from { margin-left: 0; } to { margin-left: 70%; } }
 .progress-file { margin: 8px 0 0; overflow-wrap: anywhere; color: var(--ink-soft); font-family: var(--mono); font-size: 10.5px; }
 
+.destination-preview { margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--line); }
+.preview-result { margin-top: 10px; }
+.preview-path {
+  margin: 0 0 8px;
+  overflow-wrap: anywhere;
+  color: var(--ink-soft);
+  font-family: var(--mono);
+  font-size: 11px;
+}
+.preview-entries { display: block; margin: 0; padding: 0; max-height: 220px; overflow-y: auto; border: 1px solid var(--line); border-radius: var(--radius); list-style: none; }
+.preview-entries li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border-bottom: 1px solid var(--line);
+  padding: 7px 10px;
+  font-family: var(--mono);
+  font-size: 11px;
+}
+.preview-entries li:last-child { border-bottom: 0; }
+.preview-entries .kind { flex: none; width: 14px; color: var(--ink-faint); }
+.preview-entries .entry-name { flex: 1 1 auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.preview-entries .entry-size { flex: none; color: var(--ink-faint); font-size: 10px; }
+
 /* Transfer manager and history */
 .activity-intro { position: relative; max-width: 820px; padding-right: 130px; }
 .activity-intro .btn { position: absolute; right: 0; bottom: 0; }

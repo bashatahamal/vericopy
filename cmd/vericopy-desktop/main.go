@@ -54,6 +54,10 @@ func (b *Bridge) ReviewTransfer(request desktop.TransferRequest) (desktop.Transf
 	return b.service.ReviewTransfer(request)
 }
 
+func (b *Bridge) PreviewDestination(request desktop.TransferRequest) (desktop.DestinationPreview, error) {
+	return b.service.PreviewDestination(request)
+}
+
 func (b *Bridge) StartTransfer(request desktop.TransferRequest) (desktop.TransferResult, error) {
 	result, err := b.service.StartTransfer(request)
 	if err != nil {
