@@ -157,6 +157,10 @@ func (b *Bridge) SelectSourceFile() (string, error) {
 	return runtime.OpenFileDialog(b.ctx, runtime.OpenDialogOptions{Title: "Choose a source file"})
 }
 
+func (b *Bridge) SelectSourceFiles() ([]string, error) {
+	return runtime.OpenMultipleFilesDialog(b.ctx, runtime.OpenDialogOptions{Title: "Choose source files"})
+}
+
 func (b *Bridge) SelectSourceDirectory() (string, error) {
 	return runtime.OpenDirectoryDialog(b.ctx, runtime.OpenDialogOptions{Title: "Choose a source folder"})
 }
