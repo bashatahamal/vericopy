@@ -434,6 +434,20 @@
         <span id="status-version">…</span>
       </footer>
     </div>
+    <div class="modal-overlay" id="confirm-overlay" hidden>
+      <div class="modal" role="alertdialog" aria-modal="true" aria-labelledby="confirm-title" aria-describedby="confirm-message">
+        <h2 id="confirm-title">Confirm</h2>
+        <p id="confirm-message"></p>
+        <div class="modal-word-confirm" id="confirm-word-wrap" hidden>
+          <label for="confirm-word-input">Type <strong id="confirm-word">CONFIRM</strong> to continue</label>
+          <input id="confirm-word-input" type="text" autocomplete="off" spellcheck="false" />
+        </div>
+        <div class="modal-actions">
+          <button type="button" class="btn btn-quiet" id="confirm-cancel">Cancel</button>
+          <button type="button" class="btn btn-danger" id="confirm-accept">Confirm</button>
+        </div>
+      </div>
+    </div>
     <script type="module" src="./app.js"></script>
   </body>
 </html>
