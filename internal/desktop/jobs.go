@@ -47,7 +47,10 @@ type TransferJob struct {
 	TransferredBytes int64        `json:"transferred_bytes,omitempty"`
 	TotalBytes       int64        `json:"total_bytes,omitempty"`
 	ResumedBytes     int64        `json:"resumed_bytes,omitempty"`
+	CurrentFile      int          `json:"current_file,omitempty"`
+	TotalFiles       int          `json:"total_files,omitempty"`
 	Files            int          `json:"files,omitempty"`
+	SkippedFiles     int          `json:"skipped_files,omitempty"`
 	Bytes            int64        `json:"bytes,omitempty"`
 	Verified         bool         `json:"verified"`
 	DiagnosticCode   verrors.Code `json:"diagnostic_code,omitempty"`
@@ -509,6 +512,7 @@ func (s *Service) finishJob(id string, prepared preparedTransfer, result transfe
 	job.password = ""
 	job.record.Job.CompletedAt = now
 	job.record.Job.Files = result.Files
+	job.record.Job.SkippedFiles = result.SkippedFiles
 	job.record.Job.Bytes = result.Bytes
 	job.record.Job.ResumedBytes = result.ResumedBytes
 	job.record.Job.Verified = result.Verified
@@ -570,6 +574,8 @@ func (s *Service) updateJobProgress(id string, update transfer.Progress) {
 	job.record.Job.TransferredBytes = update.TransferredBytes
 	job.record.Job.TotalBytes = update.TotalBytes
 	job.record.Job.ResumedBytes = update.ResumedBytes
+	job.record.Job.CurrentFile = update.CurrentFile
+	job.record.Job.TotalFiles = update.TotalFiles
 	if name := filepath.Base(update.Source); name != "." && name != string(filepath.Separator) && name != "" {
 		job.record.Job.SourceName = name
 	}

@@ -207,6 +207,47 @@ func TestCopyReportsTruthfulFileProgress(t *testing.T) {
 	}
 }
 
+func TestCopyDirectoryReportsFilePosition(t *testing.T) {
+	sourceRoot := t.TempDir()
+	if err := os.WriteFile(filepath.Join(sourceRoot, "a.txt"), []byte("first file content"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(sourceRoot, "b.txt"), []byte("second file content"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	remoteFS := localRemote{root: t.TempDir()}
+	policy, _ := permissions.Resolve("private", "", "")
+	var updates []transfer.Progress
+	result, err := (transfer.Engine{Remote: remoteFS}).Copy(context.Background(), sourceRoot, "/shared", transfer.Options{
+		Recursive: true, Policy: policy,
+		Progress: func(progress transfer.Progress) { updates = append(updates, progress) },
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Files != 2 {
+		t.Fatalf("unexpected file count: %#v", result)
+	}
+	seenFileOne, seenFileTwo := false, false
+	for _, update := range updates {
+		if update.TotalFiles != 2 {
+			t.Fatalf("expected TotalFiles=2 on every update, got %#v", update)
+		}
+		if update.CurrentFile < 1 || update.CurrentFile > 2 {
+			t.Fatalf("CurrentFile out of range: %#v", update)
+		}
+		if update.CurrentFile == 1 {
+			seenFileOne = true
+		}
+		if update.CurrentFile == 2 {
+			seenFileTwo = true
+		}
+	}
+	if !seenFileOne || !seenFileTwo {
+		t.Fatalf("did not see progress for both files: %#v", updates)
+	}
+}
+
 func TestExistingDestinationProtected(t *testing.T) {
 	source := filepath.Join(t.TempDir(), "source")
 	if err := os.WriteFile(source, []byte("new"), 0o600); err != nil {

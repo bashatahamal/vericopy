@@ -51,6 +51,10 @@ type Options struct {
 
 // Progress is an honest per-file transfer update. Directory transfers emit an
 // update for the current file instead of inventing an aggregate percentage.
+// CurrentFile and TotalFiles locate that file within a directory transfer;
+// both are 1 for a single-file transfer. TotalFiles is 0 when the source
+// tree could not be counted in advance, in which case CurrentFile still
+// increments but has no known denominator.
 type Progress struct {
 	Phase            string
 	Source           string
@@ -58,6 +62,8 @@ type Progress struct {
 	TransferredBytes int64
 	TotalBytes       int64
 	ResumedBytes     int64
+	CurrentFile      int
+	TotalFiles       int
 }
 
 // Result summarizes verified transfer work.
@@ -117,7 +123,7 @@ func (e Engine) Copy(ctx context.Context, source, destination string, options Op
 	if !info.Mode().IsRegular() {
 		return Result{}, verrors.New(verrors.CodeUnsupportedFileType, "only regular files and directories are supported")
 	}
-	return e.copyFile(ctx, source, destination, options)
+	return e.copyFile(ctx, source, destination, options, 1, 1)
 }
 
 func (e Engine) copyDirectory(ctx context.Context, source, destination string, options Options) (Result, error) {
@@ -127,6 +133,11 @@ func (e Engine) copyDirectory(ctx context.Context, source, destination string, o
 		info   fs.FileInfo
 	}
 	directories := make([]directoryRecord, 0)
+	// Best-effort: a source tree that cannot be pre-counted (e.g. permission
+	// error on a subdirectory) still transfers normally, just without a known
+	// "file N of M" denominator in progress updates.
+	totalFiles, _ := countRegularFiles(source)
+	fileIndex := 0
 	if err := e.validateRemoteParents(destination); err != nil {
 		return Result{}, err
 	}
@@ -193,7 +204,8 @@ func (e Engine) copyDirectory(ctx context.Context, source, destination string, o
 			return verrors.New(verrors.CodeUnsupportedFileType,
 				fmt.Sprintf("special file %q is not supported", local))
 		}
-		fileResult, err := e.copyFile(ctx, local, remotePath, options)
+		fileIndex++
+		fileResult, err := e.copyFile(ctx, local, remotePath, options, fileIndex, totalFiles)
 		if err != nil {
 			return err
 		}
@@ -217,13 +229,16 @@ func (e Engine) copyDirectory(ctx context.Context, source, destination string, o
 	return result, nil
 }
 
-func (e Engine) copyFile(ctx context.Context, source, destination string, options Options) (Result, error) {
+func (e Engine) copyFile(ctx context.Context, source, destination string, options Options, fileIndex, totalFiles int) (Result, error) {
 	result := Result{Source: source, Destination: destination, Files: 1, Verified: false, DryRun: options.DryRun}
 	initial, err := os.Stat(source)
 	if err != nil {
 		return Result{}, verrors.Wrap(verrors.CodeInvalidLocalPath, "the source cannot be read", err)
 	}
-	e.report(options, Progress{Phase: "preparing", Source: source, Destination: destination, TotalBytes: initial.Size()})
+	e.report(options, Progress{
+		Phase: "preparing", Source: source, Destination: destination, TotalBytes: initial.Size(),
+		CurrentFile: fileIndex, TotalFiles: totalFiles,
+	})
 	if err := e.validateRemoteParents(destination); err != nil {
 		return Result{}, err
 	}
@@ -244,6 +259,7 @@ func (e Engine) copyFile(ctx context.Context, source, destination string, option
 		if statErr == nil && options.NoClobber {
 			e.report(options, Progress{
 				Phase: "skipped", Source: source, Destination: destination, TotalBytes: initial.Size(),
+				CurrentFile: fileIndex, TotalFiles: totalFiles,
 			})
 			return Result{Source: source, Destination: destination, SkippedFiles: 1, DryRun: options.DryRun}, nil
 		}
@@ -289,11 +305,13 @@ func (e Engine) copyFile(ctx context.Context, source, destination string, option
 	e.report(options, Progress{
 		Phase: "uploading", Source: source, Destination: destination,
 		TransferredBytes: offset, TotalBytes: initial.Size(), ResumedBytes: offset,
+		CurrentFile: fileIndex, TotalFiles: totalFiles,
 	})
 	localDigest, localBytes, err := e.upload(ctx, source, partialPath, offset, func(transferred int64) {
 		e.report(options, Progress{
 			Phase: "uploading", Source: source, Destination: destination,
 			TransferredBytes: transferred, TotalBytes: initial.Size(), ResumedBytes: offset,
+			CurrentFile: fileIndex, TotalFiles: totalFiles,
 		})
 	})
 	if err != nil {
@@ -308,6 +326,7 @@ func (e Engine) copyFile(ctx context.Context, source, destination string, option
 	e.report(options, Progress{
 		Phase: "verifying", Source: source, Destination: destination,
 		TransferredBytes: localBytes, TotalBytes: initial.Size(), ResumedBytes: offset,
+		CurrentFile: fileIndex, TotalFiles: totalFiles,
 	})
 	if !e.verifyRemoteFast(ctx, partialPath, localDigest, localBytes) {
 		remoteReader, err := e.Remote.Open(partialPath)
@@ -333,6 +352,7 @@ func (e Engine) copyFile(ctx context.Context, source, destination string, option
 	e.report(options, Progress{
 		Phase: "finalizing", Source: source, Destination: destination,
 		TransferredBytes: localBytes, TotalBytes: initial.Size(), ResumedBytes: offset,
+		CurrentFile: fileIndex, TotalFiles: totalFiles,
 	})
 	if options.Overwrite {
 		if _, statErr := e.Remote.Lstat(destination); statErr == nil {
@@ -351,6 +371,7 @@ func (e Engine) copyFile(ctx context.Context, source, destination string, option
 	e.report(options, Progress{
 		Phase: "verified", Source: source, Destination: destination,
 		TransferredBytes: localBytes, TotalBytes: initial.Size(), ResumedBytes: offset,
+		CurrentFile: fileIndex, TotalFiles: totalFiles,
 	})
 	return result, nil
 }
@@ -619,4 +640,23 @@ func (r *contextReader) Read(buffer []byte) (int, error) {
 
 func isNotExist(err error) bool {
 	return err != nil && (errors.Is(err, fs.ErrNotExist) || strings.Contains(strings.ToLower(err.Error()), "no such file"))
+}
+
+// countRegularFiles walks source once to count the regular files it
+// contains, giving progress reporting a denominator before the transfer
+// itself starts walking the same tree. It mirrors copyDirectory's own
+// file/directory classification, but only counts; it does not reject
+// symlinks or special files here; the real walk still does that.
+func countRegularFiles(source string) (int, error) {
+	count := 0
+	err := filepath.WalkDir(source, func(_ string, entry fs.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
+		}
+		if !entry.IsDir() && entry.Type()&os.ModeSymlink == 0 {
+			count++
+		}
+		return nil
+	})
+	return count, err
 }
