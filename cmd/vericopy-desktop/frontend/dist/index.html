@@ -218,7 +218,11 @@
                         <button class="link-btn" type="button" id="toggle-password" aria-pressed="false">Show</button>
                       </div>
                       <input id="password" name="password" type="password" placeholder="Enter the password for the SSH user" autocomplete="off" />
-                      <p class="secret-note"><span class="dot is-on"></span><span><strong>One-time use.</strong> Cleared from this form when the transfer starts; excluded from saved sessions, history, progress, and logs.</span></p>
+                      <p class="secret-note"><span class="dot is-on"></span><span><strong>One-time use by default.</strong> Cleared from this form when the transfer starts; excluded from history, progress, and logs. Never written to a saved session unless you turn on Remember below.</span></p>
+                      <label class="remember-password" data-tip="Stores this password in your operating system's own secure credential store (Windows Credential Manager, macOS Keychain, or Linux Secret Service), tied to this saved session's name. Never written to Vericopy's own files. Requires a saved session; turning this off removes the stored password.">
+                        <input id="remember-password" type="checkbox" />
+                        <span class="tip-text">Remember this password for the saved session</span>
+                      </label>
                     </div>
                   </div>
                 </div>
@@ -453,7 +457,7 @@
                 <h2>Your review is part of the security model.</h2>
                 <div class="safety-columns">
                   <div><strong>Always</strong><p>Strict host verification, native SFTP, safe resume checks, SHA-256 readback, and explicit destination permissions.</p></div>
-                  <div><strong>Never</strong><p>Password persistence, password logging, telemetry, silent host-key acceptance, or shell interpolation of file paths.</p></div>
+                  <div><strong>Never</strong><p>Password logging, telemetry, silent host-key acceptance, or shell interpolation of file paths. Passwords are never written to Vericopy's own files, and are never stored anywhere unless you explicitly turn on Remember for a saved session, which uses your operating system's own credential store, not Vericopy's.</p></div>
                 </div>
                 <button class="btn btn-primary" type="button" data-open-transfer>Set up a transfer</button>
               </article>

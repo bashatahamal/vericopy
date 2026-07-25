@@ -129,6 +129,10 @@ func (b *Bridge) DeleteSession(name string) (bool, error) {
 	return b.service.DeleteSession(name)
 }
 
+func (b *Bridge) LoadSessionPassword(name string) (string, error) {
+	return b.service.LoadSessionPassword(name)
+}
+
 func (b *Bridge) ListTransferHistory() ([]desktop.TransferHistoryEntry, error) {
 	return b.service.ListTransferHistory()
 }

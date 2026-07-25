@@ -534,6 +534,7 @@ a { color: var(--accent-ink); text-decoration: none; }
 .secret-note { display: flex; align-items: flex-start; gap: 9px; margin: 9px 0 0; color: var(--ink-soft); font-size: 11px; line-height: 1.48; }
 .secret-note .dot { margin-top: 5px; }
 .secret-note strong { color: var(--accent-ink); }
+.remember-password { display: flex; align-items: center; gap: 8px; margin: 10px 0 0; color: var(--ink-soft); font-size: 12px; cursor: help; }
 
 .checks { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px 14px; }
 .checks label { display: flex; align-items: center; gap: 9px; border-bottom: 1px solid var(--line); padding: 9px 2px; color: var(--ink-soft); font-size: 12.5px; }

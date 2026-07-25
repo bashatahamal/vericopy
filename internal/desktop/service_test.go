@@ -79,6 +79,74 @@ func TestReviewTransferRejectsOverwriteAndNoClobberTogether(t *testing.T) {
 	}
 }
 
+func TestSaveSessionStoresPasswordOnlyInCredentialStoreNotOnDisk(t *testing.T) {
+	statePath := filepath.Join(t.TempDir(), "desktop-state.json")
+	service := desktop.NewServiceWithStatePath(statePath)
+	saved, err := service.SaveSession(desktop.SessionProfile{
+		Name: "home-server", Destination: "transfer@example.com:/srv/shared", Authentication: "password",
+		RememberPassword: true, Password: "must-never-reach-disk",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !saved.RememberPassword {
+		t.Fatalf("RememberPassword was not retained: %#v", saved)
+	}
+	data, err := os.ReadFile(statePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(data), "must-never-reach-disk") {
+		t.Fatalf("password material was persisted to the state file: %s", data)
+	}
+
+	password, err := service.LoadSessionPassword("home-server")
+	if err != nil || password != "must-never-reach-disk" {
+		t.Fatalf("LoadSessionPassword() = %q, %v", password, err)
+	}
+
+	if _, err := service.DeleteSession("home-server"); err != nil {
+		t.Fatal(err)
+	}
+	if password, err := service.LoadSessionPassword("home-server"); err != nil || password != "" {
+		t.Fatalf("expected no stored password after deleting the session, got %q, %v", password, err)
+	}
+}
+
+func TestSaveSessionWithoutRememberDoesNotStoreAPassword(t *testing.T) {
+	statePath := filepath.Join(t.TempDir(), "desktop-state.json")
+	service := desktop.NewServiceWithStatePath(statePath)
+	if _, err := service.SaveSession(desktop.SessionProfile{
+		Name: "occasional-server", Destination: "transfer@example.com:/srv/shared", Authentication: "password",
+		RememberPassword: false, Password: "should-not-be-stored",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if password, err := service.LoadSessionPassword("occasional-server"); err != nil || password != "" {
+		t.Fatalf("expected no stored password without RememberPassword, got %q, %v", password, err)
+	}
+}
+
+func TestTurningOffRememberPasswordRemovesTheStoredPassword(t *testing.T) {
+	statePath := filepath.Join(t.TempDir(), "desktop-state.json")
+	service := desktop.NewServiceWithStatePath(statePath)
+	if _, err := service.SaveSession(desktop.SessionProfile{
+		Name: "toggle-server", Destination: "transfer@example.com:/srv/shared", Authentication: "password",
+		RememberPassword: true, Password: "temporary-secret",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := service.SaveSession(desktop.SessionProfile{
+		Name: "toggle-server", Destination: "transfer@example.com:/srv/shared", Authentication: "password",
+		RememberPassword: false,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if password, err := service.LoadSessionPassword("toggle-server"); err != nil || password != "" {
+		t.Fatalf("expected the stored password to be removed after unchecking Remember, got %q, %v", password, err)
+	}
+}
+
 func TestReviewTransferRetainsNoClobber(t *testing.T) {
 	source := filepath.Join(t.TempDir(), "annual-report.pdf")
 	if err := os.WriteFile(source, []byte("report"), 0o600); err != nil {

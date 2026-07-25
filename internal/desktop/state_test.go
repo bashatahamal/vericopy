@@ -9,9 +9,18 @@ import (
 	"testing"
 	"time"
 
+	"github.com/zalando/go-keyring"
+
 	"github.com/bashatahamal/vericopy/internal/remote"
 	"github.com/bashatahamal/vericopy/internal/verrors"
 )
+
+func TestMain(m *testing.M) {
+	// A mock backend keeps password-storage tests in this package from
+	// touching the real OS credential store.
+	keyring.MockInit()
+	os.Exit(m.Run())
+}
 
 func TestStateStoreSavesOnlyValidatedProfiles(t *testing.T) {
 	store := newStateStore(filepath.Join(t.TempDir(), "desktop-state.json"))
