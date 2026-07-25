@@ -464,9 +464,13 @@ a { color: var(--accent-ink); text-decoration: none; }
 }
 .session-bar input { width: 170px; height: 34px; border: 1px solid var(--line); border-radius: var(--radius); padding: 0 10px; background: var(--surface-raised); font-size: 12px; }
 .chips { display: inline-flex; flex-wrap: wrap; gap: 6px; }
-.chip { border: 1px solid var(--line); border-radius: var(--radius); padding: 5px 9px; background: transparent; color: var(--ink-soft); font-size: 11px; }
-.chip:hover { border-color: var(--line-strong); color: var(--ink); }
+.chip { display: inline-flex; align-items: stretch; border: 1px solid var(--line); border-radius: var(--radius); background: transparent; color: var(--ink-soft); font-size: 11px; overflow: hidden; }
+.chip:hover { border-color: var(--line-strong); }
 .chip.is-active { border-color: var(--accent); background: var(--accent-wash); color: var(--accent-ink); }
+.chip-load { border: 0; background: transparent; padding: 5px 9px; color: inherit; font-size: inherit; }
+.chip-load:hover { color: var(--ink); }
+.chip-remove { border: 0; border-left: 1px solid var(--line); background: transparent; padding: 5px 8px; color: var(--ink-faint); font-size: 12px; line-height: 1; }
+.chip-remove:hover { background: var(--danger-wash); color: var(--danger); }
 
 .form { display: grid; gap: 0; margin-top: 22px; }
 .form-step { display: grid; grid-template-columns: 190px minmax(0, 1fr); gap: 34px; border-top: 1px solid var(--line); padding: 28px 0; }
@@ -534,7 +538,17 @@ a { color: var(--accent-ink); text-decoration: none; }
 .secret-note { display: flex; align-items: flex-start; gap: 9px; margin: 9px 0 0; color: var(--ink-soft); font-size: 11px; line-height: 1.48; }
 .secret-note .dot { margin-top: 5px; }
 .secret-note strong { color: var(--accent-ink); }
-.remember-password { display: flex; align-items: center; gap: 8px; margin: 10px 0 0; color: var(--ink-soft); font-size: 12px; cursor: help; }
+label.remember-password {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 10px 0 0;
+  color: var(--ink-soft);
+  font-size: 12px;
+  font-weight: 400;
+  cursor: help;
+}
+.remember-password input[type="checkbox"] { width: 15px; height: 15px; margin: 0; flex: none; accent-color: var(--accent); }
 
 .checks { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px 14px; }
 .checks label { display: flex; align-items: center; gap: 9px; border-bottom: 1px solid var(--line); padding: 9px 2px; color: var(--ink-soft); font-size: 12.5px; }
