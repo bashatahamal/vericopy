@@ -82,6 +82,7 @@ const els = {
   browseLocalTab: $("#browse-local-tab"),
   browseRemoteTab: $("#browse-remote-tab"),
   browseRemoteConnect: $("#browse-remote-connect"),
+  browseSession: $("#browse-session"),
   browseDestination: $("#browse-destination"),
   browsePort: $("#browse-port"),
   browseKnownHosts: $("#browse-known-hosts"),
@@ -419,11 +420,20 @@ async function deleteSession(name) {
 
 function renderSessions() {
   els.sessionChips.replaceChildren(...sessions.map((session) => {
-    const chip = document.createElement("button");
-    chip.type = "button";
+    const chip = document.createElement("span");
     chip.className = `chip${session.name === selectedSession ? " is-active" : ""}`;
-    chip.textContent = session.name;
-    chip.addEventListener("click", () => applySession(session));
+    const load = document.createElement("button");
+    load.type = "button";
+    load.className = "chip-load";
+    load.textContent = session.name;
+    load.addEventListener("click", () => applySession(session));
+    const remove = document.createElement("button");
+    remove.type = "button";
+    remove.className = "chip-remove";
+    remove.textContent = "×";
+    remove.setAttribute("aria-label", `Delete session ${session.name}`);
+    remove.addEventListener("click", () => deleteSession(session.name));
+    chip.append(load, remove);
     return chip;
   }));
 
@@ -888,9 +898,14 @@ function jobRow(job, compact = false) {
     detail.className = "job-detail";
     const phase = document.createElement("span");
     phase.textContent = PHASE_LABELS[job.phase] || JOB_LABELS[job.status] || "Waiting";
-    const message = document.createElement("span");
-    message.textContent = job.message || "";
-    detail.append(phase, message);
+    detail.append(phase);
+    // The message often just restates the phase label (e.g. both say
+    // "Transfer verified"); only show it separately when it adds something.
+    if (job.message && job.message !== phase.textContent) {
+      const message = document.createElement("span");
+      message.textContent = job.message;
+      detail.append(message);
+    }
     row.append(detail);
 
     const progress = jobProgress(job);
@@ -1190,6 +1205,43 @@ function browseConnectionRequest() {
   };
 }
 
+function populateBrowseSessionOptions() {
+  const previous = els.browseSession.value;
+  els.browseSession.replaceChildren();
+  const manual = document.createElement("option");
+  manual.value = "";
+  manual.textContent = "Type connection details manually below";
+  els.browseSession.append(manual);
+  for (const session of sessions) {
+    if (!session.destination) continue;
+    const option = document.createElement("option");
+    option.value = session.name;
+    option.textContent = session.name;
+    els.browseSession.append(option);
+  }
+  if ([...els.browseSession.options].some((option) => option.value === previous)) {
+    els.browseSession.value = previous;
+  }
+}
+
+async function applyBrowseSession(name) {
+  const session = sessions.find((candidate) => candidate.name === name);
+  if (!session) return;
+  els.browseDestination.value = session.destination || "";
+  els.browsePort.value = session.port || "";
+  els.browseKnownHosts.value = session.known_hosts || "";
+  els.browseIdentity.value = session.authentication === "key" ? session.identity || "" : "";
+  els.browsePassword.value = "";
+  if (session.authentication === "password" && session.remember_password) {
+    try {
+      const password = await invoke("LoadSessionPassword", session.name);
+      if (password) els.browsePassword.value = password;
+    } catch {
+      // No stored password to prefill; the user can still type one.
+    }
+  }
+}
+
 function switchBrowseMode(mode) {
   browseMode = mode;
   browseCurrentPath = "";
@@ -1201,6 +1253,7 @@ function switchBrowseMode(mode) {
   els.browseRemoteTab.classList.toggle("is-active", mode === "remote");
   els.browseRemoteTab.setAttribute("aria-selected", String(mode === "remote"));
   els.browseRemoteConnect.hidden = mode !== "remote";
+  if (mode === "remote") populateBrowseSessionOptions();
   els.browsePathInput.value = "";
   els.browsePathInput.disabled = mode === "remote";
   els.browseGo.disabled = mode === "remote";
@@ -1318,6 +1371,7 @@ async function deleteBrowseSelected() {
 
 els.browseLocalTab.addEventListener("click", () => switchBrowseMode("local"));
 els.browseRemoteTab.addEventListener("click", () => switchBrowseMode("remote"));
+els.browseSession.addEventListener("change", () => applyBrowseSession(els.browseSession.value));
 els.browseConnect.addEventListener("click", () => {
   const destination = els.browseDestination.value.trim();
   if (!destination) { setBrowseNotice("Enter a destination first.", "error"); els.browseDestination.focus(); return; }

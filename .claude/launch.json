@@ -1,0 +1,12 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "vericopy-desktop-dev",
+      "runtimeExecutable": "wails",
+      "runtimeArgs": ["dev", "-tags", "desktop"],
+      "cwd": "cmd/vericopy-desktop",
+      "port": 34115
+    }
+  ]
+}
