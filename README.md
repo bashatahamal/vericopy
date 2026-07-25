@@ -116,18 +116,25 @@ An encrypted private key should be loaded into the agent before starting a
 transfer.
 
 One-time password mode is an explicit alternative for servers that permit SSH
-password authentication. The password is sent only to the native SSH connection
-when the transfer starts. It is not stored in saved sessions, reviews, activity,
-progress, or logs, and the visible field is cleared when the transfer begins.
-Like any credential entered into an application, it exists briefly in process
-memory while authenticating. Keyboard-interactive and multi-factor challenge
-flows are not supported.
+password authentication. By default the password is sent only to the native
+SSH connection when the transfer starts: it is not stored in saved sessions,
+reviews, activity, progress, or logs, and the visible field is cleared when the
+transfer begins. Like any credential entered into an application, it exists
+briefly in process memory while authenticating. Keyboard-interactive and
+multi-factor challenge flows are not supported.
+
+A saved session can optionally turn on **Remember this password**. When set,
+the password is stored in the operating system's own credential store
+(Windows Credential Manager, macOS Keychain, or Linux Secret Service), keyed
+by the session name, never in Vericopy's own state file. Turning the option
+off removes the stored password. This is opt-in and off by default.
 
 Saved sessions and recoverable job setup can contain local source paths,
 identity-key paths, destination details, and preferences. They never contain
-passwords, key contents, or key passphrases. The transfer manager exposes only
-source names and redacted destinations; activity records are local and
-deliberately redacted.
+key contents or key passphrases, and never contain a password unless Remember
+this password was explicitly turned on for that session. The transfer manager
+exposes only source names and redacted destinations; activity records are
+local and deliberately redacted.
 
 ## Transfer guarantees
 

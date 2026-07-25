@@ -160,11 +160,26 @@ it. It is separate from WebView storage.
 Saved sessions intentionally retain the complete transfer form for convenience,
 including the local source path, SSH identity-key path, and selected
 authentication method. They store path and preference strings only, never
-private-key contents, passwords, or key passphrases. Anyone
+private-key contents or key passphrases. Anyone
 who can read the user's Vericopy state file can learn those paths, destination
 details, and transfer preferences, so the local user account remains a trust
-boundary. Deleting a session removes only its saved form data and never touches
-the referenced source, key, host-key file, or remote destination.
+boundary. Deleting a session removes its saved form data and any password
+stored for it in the OS credential store, and never touches the referenced
+source, key, host-key file, or remote destination.
+
+A saved session may optionally turn on Remember this password. That flag
+alone is what is persisted in the state file; the password itself is never
+written there. When set, `Service.SaveSession` stores the password in the
+operating system's own credential store (Windows Credential Manager, macOS
+Keychain, or Linux Secret Service via `internal/credentialstore`), keyed by
+the session name, and clears it from the in-memory struct before the struct
+is ever passed on to be written to disk — the same clear-before-persist
+pattern already used for `TransferRequest.Password`. Turning the option off
+deletes the stored password. Anyone with the same OS-user-level access
+required to read the state file in the first place could also read the OS
+credential store directly; this feature does not introduce a new trust
+boundary, only a more deliberate storage location than a plaintext file
+would have been.
 
 Legacy connection profiles remain temporarily available for migration. Unlike
 sessions, they contain only a remote destination, port, and `known_hosts`

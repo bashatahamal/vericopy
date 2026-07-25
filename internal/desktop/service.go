@@ -5,6 +5,7 @@ package desktop
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"path"
@@ -16,6 +17,7 @@ import (
 
 	"github.com/bashatahamal/vericopy/internal/access"
 	nativesftp "github.com/bashatahamal/vericopy/internal/backend/sftp"
+	"github.com/bashatahamal/vericopy/internal/credentialstore"
 	"github.com/bashatahamal/vericopy/internal/localpath"
 	"github.com/bashatahamal/vericopy/internal/permissions"
 	"github.com/bashatahamal/vericopy/internal/remote"
@@ -491,12 +493,44 @@ func (s *Service) ListSessions() ([]SessionProfile, error) {
 }
 
 // SaveSession creates or replaces one complete local transfer session.
+// Password is never written to the state file: when RememberPassword is set
+// and a password was provided, it is stored in the OS credential store
+// instead, keyed by the session name. Clearing RememberPassword removes any
+// previously stored password for this session.
 func (s *Service) SaveSession(session SessionProfile) (SessionProfile, error) {
-	return s.state.SaveSession(session)
+	password := session.Password
+	session.Password = ""
+	saved, err := s.state.SaveSession(session)
+	if err != nil {
+		return SessionProfile{}, err
+	}
+	if session.RememberPassword && password != "" {
+		if err := credentialstore.Save(saved.Name, password); err != nil {
+			return SessionProfile{}, verrors.Wrap(verrors.CodeInvalidArguments, "could not store the password securely", err)
+		}
+	} else if !session.RememberPassword {
+		_ = credentialstore.Delete(saved.Name)
+	}
+	return saved, nil
 }
 
-// DeleteSession removes one local transfer session by its unique name.
+// LoadSessionPassword returns a previously stored password for a saved
+// session, for pre-filling the password field when RememberPassword was set.
+func (s *Service) LoadSessionPassword(name string) (string, error) {
+	password, err := credentialstore.Load(name)
+	if err != nil {
+		if errors.Is(err, credentialstore.ErrNotFound) {
+			return "", nil
+		}
+		return "", verrors.Wrap(verrors.CodeInvalidArguments, "could not read the stored password", err)
+	}
+	return password, nil
+}
+
+// DeleteSession removes one local transfer session by its unique name, and
+// any password stored for it.
 func (s *Service) DeleteSession(name string) (bool, error) {
+	_ = credentialstore.Delete(name)
 	return s.state.DeleteSession(name)
 }
 

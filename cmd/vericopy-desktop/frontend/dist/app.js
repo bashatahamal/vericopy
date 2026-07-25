@@ -24,6 +24,7 @@ const els = {
   passwordAuthPanel: $("#password-auth-panel"),
   password: $("#password"),
   togglePassword: $("#toggle-password"),
+  rememberPassword: $("#remember-password"),
   identity: $("#identity"),
   knownHosts: $("#known-hosts"),
   group: $("#group"),
@@ -331,16 +332,31 @@ async function loadSessionsFromDisk() {
 }
 
 function sessionFromForm(name) {
-  return { name, updated_at: new Date().toISOString(), ...requestFromForm() };
+  const remember = els.rememberPassword.checked;
+  return {
+    name, updated_at: new Date().toISOString(), ...requestFromForm(),
+    remember_password: remember,
+    password: remember && els.password.value ? els.password.value : "",
+  };
 }
 
-function applySession(session) {
+async function applySession(session) {
   requestToForm(session);
   els.sessionName.value = session.name;
+  els.rememberPassword.checked = !!session.remember_password;
   selectedSession = session.name;
   retryingJobID = "";
   invalidateReview();
   renderSessions();
+  if (session.remember_password && session.authentication === "password") {
+    try {
+      const password = await invoke("LoadSessionPassword", session.name);
+      if (password) els.password.value = password;
+    } catch {
+      // A missing or unreadable stored password just leaves the field
+      // empty; the user can still type it in and retry.
+    }
+  }
   setNotice(`Loaded "${session.name}".`, "success");
 }
 

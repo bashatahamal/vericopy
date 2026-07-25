@@ -43,22 +43,31 @@ type ConnectionProfile struct {
 // Authentication stores only the selected method; passwords, key passphrases,
 // and private-key contents are never accepted.
 type SessionProfile struct {
-	Name           string    `json:"name"`
-	Destination    string    `json:"destination"`
-	Port           int       `json:"port"`
-	Permissions    string    `json:"permissions"`
-	Authentication string    `json:"authentication"`
-	Identity       string    `json:"identity"`
-	KnownHosts     string    `json:"known_hosts"`
-	Group          string    `json:"group"`
-	ReadableBy     string    `json:"readable_by"`
-	Recursive      bool      `json:"recursive"`
-	Resume         bool      `json:"resume"`
-	Overwrite      bool      `json:"overwrite"`
-	NoClobber      bool      `json:"no_clobber"`
-	PreserveTime   bool      `json:"preserve_time"`
-	Source         string    `json:"source"`
-	UpdatedAt      time.Time `json:"updated_at"`
+	Name             string `json:"name"`
+	Destination      string `json:"destination"`
+	Port             int    `json:"port"`
+	Permissions      string `json:"permissions"`
+	Authentication   string `json:"authentication"`
+	Identity         string `json:"identity"`
+	KnownHosts       string `json:"known_hosts"`
+	Group            string `json:"group"`
+	ReadableBy       string `json:"readable_by"`
+	Recursive        bool   `json:"recursive"`
+	Resume           bool   `json:"resume"`
+	Overwrite        bool   `json:"overwrite"`
+	NoClobber        bool   `json:"no_clobber"`
+	PreserveTime     bool   `json:"preserve_time"`
+	Source           string `json:"source"`
+	RememberPassword bool   `json:"remember_password"`
+	// Password is a transient carrier for SaveSession requests only, the
+	// same pattern TransferRequest.Password already uses: visible in JSON so
+	// the frontend can send it, but Service.SaveSession clears it in code
+	// before this struct is ever passed on to be written to the state file,
+	// so a password never actually reaches disk. The stored secret, when
+	// RememberPassword is set, lives only in the OS credential store, keyed
+	// by session name.
+	Password  string    `json:"password,omitempty"`
+	UpdatedAt time.Time `json:"updated_at"`
 }
 
 // TransferHistoryEntry is a redacted, local audit record. It never contains a
