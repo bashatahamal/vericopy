@@ -49,6 +49,7 @@ const els = {
   historyList: $("#history-list"),
   historyEmpty: $("#history-empty"),
   clearHistory: $("#clear-history"),
+  transfersTabBadge: $("#transfers-tab-badge"),
   confirmOverlay: $("#confirm-overlay"),
   confirmTitle: $("#confirm-title"),
   confirmMessage: $("#confirm-message"),
@@ -733,6 +734,9 @@ function renderTransferJobs() {
   els.queueWaiting.textContent = String(transferQueue.queued || 0);
   els.queueCapacity.textContent = String(transferQueue.max_concurrent || 2);
   els.statusJobs.textContent = `${transferQueue.running || 0} active · ${transferQueue.queued || 0} queued`;
+  const runningCount = transferQueue.running || 0;
+  els.transfersTabBadge.hidden = runningCount === 0;
+  els.transfersTabBadge.textContent = String(runningCount);
 }
 
 let loadingTransferJobs = false;
