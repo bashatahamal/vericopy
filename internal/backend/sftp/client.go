@@ -41,6 +41,10 @@ func (c *Client) Rename(oldPath, newPath string) error       { return c.client.R
 func (c *Client) Remove(path string) error                   { return c.client.Remove(path) }
 func (c *Client) ReadDir(path string) ([]fs.FileInfo, error) { return c.client.ReadDir(path) }
 
+// RemoveAll deletes path, recursing into and removing a directory's
+// contents first. It is destructive and irreversible.
+func (c *Client) RemoveAll(path string) error { return c.client.RemoveAll(path) }
+
 // File is the seekable remote file contract needed for resumable uploads.
 type File interface {
 	io.Reader
