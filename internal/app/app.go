@@ -29,6 +29,7 @@ import (
 	"github.com/bashatahamal/vericopy/internal/transfer"
 	"github.com/bashatahamal/vericopy/internal/verrors"
 	"github.com/bashatahamal/vericopy/internal/version"
+	"github.com/bashatahamal/vericopy/internal/wakelock"
 )
 
 // Globals contains output controls shared by every command.
@@ -270,6 +271,7 @@ func runCopy(ctx context.Context, globals *Globals, flags *copyFlags, sourceArg,
 		gid = &resolved
 	}
 	engine := transfer.Engine{Remote: remoteFS, Hasher: remotehash.Hasher{Runner: access.SSHRunner{Client: sshConnection.Client}}}
+	defer wakelock.Acquire("Vericopy transfer in progress")()
 	result, err := engine.Copy(ctx, source, destination.Path, transfer.Options{
 		Recursive: flags.Recursive, Resume: flags.Resume, Overwrite: flags.Overwrite,
 		NoClobber: flags.NoClobber, PreserveTime: flags.PreserveTime, DryRun: flags.DryRun,
@@ -320,6 +322,7 @@ func runRsync(ctx context.Context, globals *Globals, flags *copyFlags, policy pe
 	}
 	defer sshConnection.Close()
 	defer remoteFS.Close()
+	defer wakelock.Acquire("Vericopy transfer in progress")()
 	finalDestination := destination.Path
 	if existing, statErr := remoteFS.Lstat(finalDestination); statErr == nil {
 		if existing.Mode()&fs.ModeSymlink != 0 {

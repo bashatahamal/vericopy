@@ -29,6 +29,8 @@ illustrative.*
 - Queue multiple transfers, run up to two at once, and manage each job without
   waiting to prepare the next one.
 - Resume compatible interrupted uploads.
+- Keep the machine from sleeping while a transfer is active, on a best-effort
+  basis per platform.
 - Read the uploaded bytes back through SFTP and compare size and SHA-256 before
   finalizing the destination.
 - Apply an explicit destination permission policy.

@@ -11,6 +11,7 @@ import (
 	"github.com/bashatahamal/vericopy/internal/sshclient"
 	"github.com/bashatahamal/vericopy/internal/transfer"
 	"github.com/bashatahamal/vericopy/internal/verrors"
+	"github.com/bashatahamal/vericopy/internal/wakelock"
 )
 
 const (
@@ -401,6 +402,9 @@ func (s *Service) dispatchJobs() {
 		password := selected.password
 		selected.password = ""
 		s.runningJobs++
+		if s.runningJobs == 1 {
+			s.wakeLock = wakelock.Acquire("Vericopy transfer in progress")
+		}
 		s.jobWG.Add(1)
 		s.mu.Unlock()
 
@@ -434,6 +438,15 @@ func (s *Service) runJob(ctx context.Context, id, password string) {
 	s.finishJob(id, prepared, result, transferErr)
 }
 
+// releaseWakeLockIfIdleLocked releases the sleep-prevention lock once no job
+// is running. Callers must hold s.mu.
+func (s *Service) releaseWakeLockIfIdleLocked() {
+	if s.runningJobs == 0 && s.wakeLock != nil {
+		s.wakeLock()
+		s.wakeLock = nil
+	}
+}
+
 func (s *Service) finishJob(id string, prepared preparedTransfer, result transfer.Result, transferErr error) {
 	now := time.Now().UTC()
 	s.mu.Lock()
@@ -442,6 +455,7 @@ func (s *Service) finishJob(id string, prepared preparedTransfer, result transfe
 		if s.runningJobs > 0 {
 			s.runningJobs--
 		}
+		s.releaseWakeLockIfIdleLocked()
 		s.mu.Unlock()
 		go s.dispatchJobs()
 		return
@@ -481,6 +495,7 @@ func (s *Service) finishJob(id string, prepared preparedTransfer, result transfe
 	if s.runningJobs > 0 {
 		s.runningJobs--
 	}
+	s.releaseWakeLockIfIdleLocked()
 	s.mu.Unlock()
 
 	_ = s.state.saveTransferJob(record)
