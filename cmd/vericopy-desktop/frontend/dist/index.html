@@ -126,7 +126,7 @@
               <section class="form-step" aria-labelledby="source-step-heading">
                 <div class="step-heading">
                   <span>01</span>
-                  <div><h2 id="source-step-heading">Choose what to send</h2><p>A regular file or a folder from this computer.</p></div>
+                  <div><h2 id="source-step-heading">Choose what to send</h2><p>A regular file, multiple files, or a folder from this computer.</p></div>
                 </div>
                 <div class="step-body">
                   <div class="field">
@@ -134,9 +134,11 @@
                       <label for="source">Source <span class="req">required</span></label>
                       <span class="spacer"></span>
                       <button class="link-btn" type="button" id="choose-file">Choose file</button>
+                      <button class="link-btn" type="button" id="choose-files">Choose files</button>
                       <button class="link-btn" type="button" id="choose-folder">Choose folder</button>
                     </div>
                     <input id="source" name="source" type="text" class="mono" placeholder="C:\Users\me\Documents\report.zip" autocomplete="off" spellcheck="false" required />
+                    <p class="field-note" id="multi-source-note" hidden>Each file will be queued as its own transfer with the settings below.</p>
                   </div>
                 </div>
               </section>

@@ -14,6 +14,7 @@ const els = {
   panels: [...document.querySelectorAll("[data-view-panel]")],
   form: $("#transfer-form"),
   source: $("#source"),
+  multiSourceNote: $("#multi-source-note"),
   destination: $("#destination"),
   port: $("#port"),
   permissions: $("#permissions"),
@@ -97,6 +98,23 @@ let reviewedRequest = null;
 let lastHistory = [];
 let transferQueue = { jobs: [], running: 0, queued: 0, max_concurrent: 2 };
 let retryingJobID = "";
+let multipleSources = [];
+
+function exitMultiSourceMode() {
+  multipleSources = [];
+  els.source.readOnly = false;
+  els.multiSourceNote.hidden = true;
+  els.reviewButton.textContent = "Review transfer";
+}
+
+function enterMultiSourceMode(paths) {
+  multipleSources = paths;
+  els.source.value = `${paths.length} files selected`;
+  els.source.readOnly = true;
+  els.multiSourceNote.hidden = false;
+  els.reviewButton.textContent = `Queue ${paths.length} files`;
+  invalidateReview();
+}
 let jobRefreshTimer = null;
 const PAGE_SIZE = 10;
 let jobsPage = 1;
@@ -648,6 +666,7 @@ async function choose(method, destination, markRecursive = false) {
   try {
     const selected = await invoke(method);
     if (selected) {
+      exitMultiSourceMode();
       destination.value = selected;
       if (markRecursive) els.recursive.checked = true;
       invalidateReview();
@@ -655,6 +674,68 @@ async function choose(method, destination, markRecursive = false) {
   } catch (error) {
     setNotice(error?.message || String(error), "error");
   }
+}
+
+async function chooseMultiple() {
+  try {
+    const selected = await invoke("SelectSourceFiles");
+    if (!selected || selected.length === 0) return;
+    if (selected.length === 1) {
+      exitMultiSourceMode();
+      els.source.value = selected[0];
+      invalidateReview();
+      return;
+    }
+    enterMultiSourceMode(selected);
+  } catch (error) {
+    setNotice(error?.message || String(error), "error");
+  }
+}
+
+async function queueMultipleSources() {
+  if (multipleSources.length === 0) return;
+  const request = requestFromForm();
+  if (!request.destination) { setNotice("Destination is required.", "error"); els.destination.focus(); return; }
+  if (request.authentication === "password" && !els.password.value) {
+    setNotice("Enter the SSH password for this connection.", "error");
+    els.password.focus();
+    return;
+  }
+  const confirmed = await confirmAction({
+    title: `Queue ${multipleSources.length} files?`,
+    message: `Each file is queued as its own transfer to ${request.destination}, using the same settings shown on this form.`,
+  });
+  if (!confirmed) return;
+
+  const password = request.authentication === "password" ? els.password.value : "";
+  els.reviewButton.disabled = true;
+  let queued = 0;
+  const failures = [];
+  for (const sourcePath of multipleSources) {
+    try {
+      await invoke("EnqueueTransfer", { ...request, source: sourcePath, password });
+      queued++;
+    } catch (error) {
+      const label = sourcePath.split(/[\\/]/).pop() || sourcePath;
+      failures.push(`${label}: ${error?.message || error}`);
+    }
+  }
+  els.reviewButton.disabled = false;
+  if (request.authentication === "password") {
+    els.password.value = "";
+    els.password.type = "password";
+    els.togglePassword.textContent = "Show";
+    els.togglePassword.setAttribute("aria-pressed", "false");
+  }
+  exitMultiSourceMode();
+  els.source.value = "";
+  if (failures.length === 0) {
+    setNotice(`Queued ${queued} file(s).`, "success");
+  } else {
+    setNotice(`Queued ${queued} file(s); ${failures.length} failed — ${failures.join("; ")}`, "error");
+  }
+  await loadTransferJobs();
+  showView("activity");
 }
 
 /* ---------- transfer manager ---------- */
@@ -1093,7 +1174,11 @@ document.querySelectorAll("[data-open-transfer]").forEach((button) => button.add
 }));
 document.querySelectorAll("[data-open-activity]").forEach((button) => button.addEventListener("click", () => showView("activity")));
 document.querySelectorAll("[data-open-help]").forEach((button) => button.addEventListener("click", () => showView("help")));
-els.form.addEventListener("submit", (event) => { event.preventDefault(); reviewTransfer(); });
+els.form.addEventListener("submit", (event) => {
+  event.preventDefault();
+  if (multipleSources.length > 0) queueMultipleSources();
+  else reviewTransfer();
+});
 els.startButton.addEventListener("click", startTransfer);
 els.previewDestination.addEventListener("click", previewDestination);
 els.advancedToggle.addEventListener("click", () => setAdvancedOpen(els.advanced.hidden));
@@ -1115,6 +1200,7 @@ els.togglePassword.addEventListener("click", () => {
   els.togglePassword.setAttribute("aria-pressed", String(reveal));
 });
 $("#choose-file").addEventListener("click", () => choose("SelectSourceFile", els.source));
+$("#choose-files").addEventListener("click", chooseMultiple);
 $("#choose-folder").addEventListener("click", () => choose("SelectSourceDirectory", els.source, true));
 $("#choose-identity").addEventListener("click", () => choose("SelectIdentityFile", els.identity));
 [els.source, els.destination, els.port, els.permissions, els.password, els.identity, els.knownHosts, els.group, els.readableBy,
