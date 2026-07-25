@@ -22,6 +22,7 @@ import (
 	"github.com/bashatahamal/vericopy/internal/transfer"
 	"github.com/bashatahamal/vericopy/internal/verrors"
 	"github.com/bashatahamal/vericopy/internal/version"
+	"github.com/bashatahamal/vericopy/internal/wakelock"
 )
 
 // Service coordinates desktop requests without making the frontend responsible
@@ -42,6 +43,7 @@ type Service struct {
 	jobWG        sync.WaitGroup
 	executor     transferExecutor
 	closed       bool
+	wakeLock     wakelock.Release
 }
 
 // NewService creates the desktop service boundary.
