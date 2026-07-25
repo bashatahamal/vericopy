@@ -24,6 +24,7 @@ import (
 	"github.com/bashatahamal/vericopy/internal/output"
 	"github.com/bashatahamal/vericopy/internal/permissions"
 	"github.com/bashatahamal/vericopy/internal/remote"
+	"github.com/bashatahamal/vericopy/internal/remotehash"
 	"github.com/bashatahamal/vericopy/internal/sshclient"
 	"github.com/bashatahamal/vericopy/internal/transfer"
 	"github.com/bashatahamal/vericopy/internal/verrors"
@@ -268,7 +269,8 @@ func runCopy(ctx context.Context, globals *Globals, flags *copyFlags, sourceArg,
 		}
 		gid = &resolved
 	}
-	result, err := (transfer.Engine{Remote: remoteFS}).Copy(ctx, source, destination.Path, transfer.Options{
+	engine := transfer.Engine{Remote: remoteFS, Hasher: remotehash.Hasher{Runner: access.SSHRunner{Client: sshConnection.Client}}}
+	result, err := engine.Copy(ctx, source, destination.Path, transfer.Options{
 		Recursive: flags.Recursive, Resume: flags.Resume, Overwrite: flags.Overwrite,
 		NoClobber: flags.NoClobber, PreserveTime: flags.PreserveTime, DryRun: flags.DryRun,
 		Policy: policy, GID: gid,
@@ -368,7 +370,7 @@ func runRsync(ctx context.Context, globals *Globals, flags *copyFlags, policy pe
 		return globals.printer().Success(
 			fmt.Sprintf("Dry run: rsync would transfer %d bytes to %s", sourceInfo.Size(), finalDestination), result)
 	}
-	result, err := (transfer.Engine{Remote: remoteFS}).Verify(ctx, source, finalDestination)
+	result, err := (transfer.Engine{Remote: remoteFS, Hasher: remotehash.Hasher{Runner: access.SSHRunner{Client: sshConnection.Client}}}).Verify(ctx, source, finalDestination)
 	if err != nil {
 		return err
 	}
@@ -438,7 +440,8 @@ func newVerifyCommand(globals *Globals) *cobra.Command {
 			}
 			defer sshConnection.Close()
 			defer remoteFS.Close()
-			result, err := (transfer.Engine{Remote: remoteFS}).Verify(command.Context(), source, destination.Path)
+			engine := transfer.Engine{Remote: remoteFS, Hasher: remotehash.Hasher{Runner: access.SSHRunner{Client: sshConnection.Client}}}
+			result, err := engine.Verify(command.Context(), source, destination.Path)
 			if err != nil {
 				return err
 			}

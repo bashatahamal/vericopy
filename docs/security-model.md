@@ -75,6 +75,19 @@ Service-user and group lookup requires conservative account names and constructs
 only fixed `id` and `getent` commands. Destination paths are never included in
 those commands; SFTP metadata calls inspect them directly.
 
+Verification may run a fixed remote hash command (`sha256sum` or `shasum -a
+256`, tried in that order) as a faster alternative to reading the destination
+back over SFTP. This is the one place a destination path is placed into a
+remote command. The path is never concatenated as a raw string: it is
+wrapped in single quotes with embedded single quotes escaped (`'` becomes
+`'\''`), the standard POSIX-safe way to pass an arbitrary string through a
+shell, and `--` is placed before it so a name starting with `-` cannot be
+read as a flag. Command output is validated against a strict 64-character
+hex pattern before being trusted as a digest; anything else, including a
+missing command or an unreadable remote, is treated as the fast path being
+unavailable, not an error, and Vericopy falls back to the byte-for-byte
+SFTP read-back that remains the authoritative verification.
+
 The optional rsync backend uses `exec.CommandContext` with an argument slice. It
 does not create a local shell command string. SSH transport options are placed
 in rsync's `-e` argument as required by rsync, with user-controlled remote paths
