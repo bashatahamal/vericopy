@@ -613,12 +613,53 @@ function jobRow(job, compact = false) {
   return row;
 }
 
+// jobSignature captures everything a row's rendered content depends on. A
+// row is only rebuilt when its job's signature actually changes, so an
+// in-flight click on a button (e.g. Remove) is never invalidated by the
+// periodic refresh replacing a row that did not actually change.
+function jobSignature(job) {
+  return [
+    job.status, job.phase, job.message, job.transferred_bytes, job.total_bytes,
+    job.resumed_bytes, job.files, job.skipped_files, job.bytes, job.destination, job.authentication,
+  ].join("|");
+}
+
+// reconcileJobList updates container in place to match jobs, reusing
+// existing row elements (and their attached listeners) whenever a job's
+// signature has not changed, instead of replacing the whole list on every
+// refresh tick.
+function reconcileJobList(container, jobs, compact) {
+  const existingRows = new Map();
+  for (const child of Array.from(container.children)) {
+    if (child.dataset && child.dataset.jobId) existingRows.set(child.dataset.jobId, child);
+  }
+  let previousNode = null;
+  for (const job of jobs) {
+    const signature = jobSignature(job);
+    let row = existingRows.get(job.id);
+    if (!row || row.dataset.signature !== signature) {
+      const freshRow = jobRow(job, compact);
+      freshRow.dataset.jobId = job.id;
+      freshRow.dataset.signature = signature;
+      if (row) {
+        row.replaceWith(freshRow);
+      }
+      row = freshRow;
+    }
+    existingRows.delete(job.id);
+    const expectedNext = previousNode ? previousNode.nextSibling : container.firstChild;
+    if (expectedNext !== row) container.insertBefore(row, expectedNext);
+    previousNode = row;
+  }
+  for (const leftover of existingRows.values()) leftover.remove();
+}
+
 function renderTransferJobs() {
   const jobs = orderedJobs(transferQueue.jobs || []);
-  els.jobsList.replaceChildren(...jobs.map((job) => jobRow(job)));
+  reconcileJobList(els.jobsList, jobs, false);
   els.jobsEmpty.hidden = jobs.length > 0;
   const dashboardJobs = jobs.filter((job) => job.status !== "verified").slice(0, 3);
-  els.dashboardJobsList.replaceChildren(...dashboardJobs.map((job) => jobRow(job, true)));
+  reconcileJobList(els.dashboardJobsList, dashboardJobs, true);
   els.dashboardJobsEmpty.hidden = dashboardJobs.length > 0;
   els.queueRunning.textContent = String(transferQueue.running || 0);
   els.queueWaiting.textContent = String(transferQueue.queued || 0);
@@ -626,7 +667,10 @@ function renderTransferJobs() {
   els.statusJobs.textContent = `${transferQueue.running || 0} active · ${transferQueue.queued || 0} queued`;
 }
 
+let loadingTransferJobs = false;
 async function loadTransferJobs() {
+  if (loadingTransferJobs) return;
+  loadingTransferJobs = true;
   try {
     transferQueue = await invoke("ListTransferJobs") || { jobs: [], running: 0, queued: 0, max_concurrent: 2 };
     transferQueue.jobs ||= [];
@@ -634,6 +678,8 @@ async function loadTransferJobs() {
   } catch {
     transferQueue = { jobs: [], running: 0, queued: 0, max_concurrent: 2 };
     renderTransferJobs();
+  } finally {
+    loadingTransferJobs = false;
   }
 }
 
