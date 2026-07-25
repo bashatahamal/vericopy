@@ -58,6 +58,22 @@ func (b *Bridge) PreviewDestination(request desktop.TransferRequest) (desktop.De
 	return b.service.PreviewDestination(request)
 }
 
+func (b *Bridge) ListLocalDirectory(path string) (desktop.BrowseListing, error) {
+	return b.service.ListLocalDirectory(path)
+}
+
+func (b *Bridge) DeleteLocalPaths(paths []string) desktop.BrowseDeleteResult {
+	return b.service.DeleteLocalPaths(paths)
+}
+
+func (b *Bridge) ListRemoteDirectory(request desktop.RemoteBrowseRequest) (desktop.BrowseListing, error) {
+	return b.service.ListRemoteDirectory(request)
+}
+
+func (b *Bridge) DeleteRemotePaths(request desktop.RemoteBrowseRequest, paths []string) (desktop.BrowseDeleteResult, error) {
+	return b.service.DeleteRemotePaths(request, paths)
+}
+
 func (b *Bridge) StartTransfer(request desktop.TransferRequest) (desktop.TransferResult, error) {
 	result, err := b.service.StartTransfer(request)
 	if err != nil {

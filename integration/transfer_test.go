@@ -208,6 +208,68 @@ func TestRemoteHasherHandlesHostileFilenames(t *testing.T) {
 	}
 }
 
+func TestBrowseAndDeleteRemotePathsAgainstRealServer(t *testing.T) {
+	environment := integrationEnvironment(t)
+	_, remoteFS := connect(t, environment)
+	root := "/data/browse-" + strconv.Itoa(os.Getpid())
+	if err := remoteFS.MkdirAll(root + "/keep-me"); err != nil {
+		t.Fatal(err)
+	}
+	sourceFile := filepath.Join(t.TempDir(), "delete-me.bin")
+	if err := os.WriteFile(sourceFile, []byte("delete me"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	policy, _ := permissions.Resolve("private", "", "")
+	if _, err := (transfer.Engine{Remote: remoteFS}).Copy(context.Background(), sourceFile, root+"/delete-me.bin", transfer.Options{Policy: policy}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := (transfer.Engine{Remote: remoteFS}).Copy(context.Background(), sourceFile, root+"/keep-me/nested.bin", transfer.Options{Policy: policy}); err != nil {
+		t.Fatal(err)
+	}
+
+	service := desktop.NewService()
+	t.Cleanup(service.Close)
+	browseRequest := desktop.RemoteBrowseRequest{
+		Destination: "transfer@" + environment.host + ":" + root,
+		Port:        environment.port, Identity: environment.identity, KnownHosts: environment.knownHosts,
+		Authentication: "key",
+	}
+	listing, err := service.ListRemoteDirectory(browseRequest)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(listing.Entries) != 2 {
+		t.Fatalf("unexpected listing: %#v", listing.Entries)
+	}
+	if !listing.Entries[0].IsDir || listing.Entries[0].Name != "keep-me" {
+		t.Fatalf("expected the directory to sort first: %#v", listing.Entries)
+	}
+
+	deleteResult, err := service.DeleteRemotePaths(browseRequest, []string{root + "/delete-me.bin"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if deleteResult.Deleted != 1 || len(deleteResult.Failures) != 0 {
+		t.Fatalf("unexpected delete result: %#v", deleteResult)
+	}
+	if _, err := remoteFS.Stat(root + "/delete-me.bin"); err == nil {
+		t.Fatal("the file was not actually deleted on the server")
+	}
+
+	// A non-empty directory must still be fully, recursively removable in
+	// one call, not just an empty one.
+	folderDeleteResult, err := service.DeleteRemotePaths(browseRequest, []string{root + "/keep-me"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if folderDeleteResult.Deleted != 1 || len(folderDeleteResult.Failures) != 0 {
+		t.Fatalf("unexpected folder delete result: %#v", folderDeleteResult)
+	}
+	if _, err := remoteFS.Stat(root + "/keep-me"); err == nil {
+		t.Fatal("the non-empty directory was not actually removed on the server")
+	}
+}
+
 func TestPreviewDestinationAgainstRealServer(t *testing.T) {
 	environment := integrationEnvironment(t)
 	_, remoteFS := connect(t, environment)

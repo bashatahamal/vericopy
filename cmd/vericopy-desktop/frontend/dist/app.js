@@ -79,6 +79,25 @@ const els = {
   previewPath: $("#preview-path"),
   previewEntries: $("#preview-entries"),
   previewEmpty: $("#preview-empty"),
+  browseLocalTab: $("#browse-local-tab"),
+  browseRemoteTab: $("#browse-remote-tab"),
+  browseRemoteConnect: $("#browse-remote-connect"),
+  browseDestination: $("#browse-destination"),
+  browsePort: $("#browse-port"),
+  browseKnownHosts: $("#browse-known-hosts"),
+  browseIdentity: $("#browse-identity"),
+  browsePassword: $("#browse-password"),
+  browseConnect: $("#browse-connect"),
+  browseUp: $("#browse-up"),
+  browsePathInput: $("#browse-path-input"),
+  browseGo: $("#browse-go"),
+  browseRefresh: $("#browse-refresh"),
+  browseNotice: $("#browse-notice"),
+  browseList: $("#browse-list"),
+  browseEmpty: $("#browse-empty"),
+  browseActions: $("#browse-actions"),
+  browseSelectionCount: $("#browse-selection-count"),
+  browseDeleteSelected: $("#browse-delete-selected"),
   reviewSecurity: $("#review-security"),
   progressPanel: $("#progress-panel"),
   progressPhase: $("#progress-phase"),
@@ -1146,6 +1165,172 @@ async function clearHistory() {
   }
 }
 
+/* ---------- browse and delete ---------- */
+
+let browseMode = "local";
+let browseCurrentPath = "";
+let browseParentPath = "";
+let browseEntries = [];
+let browseSelected = new Set();
+
+function setBrowseNotice(message, kind = "") {
+  els.browseNotice.hidden = !message;
+  els.browseNotice.className = `notice${kind ? ` is-${kind}` : ""}`;
+  els.browseNotice.textContent = message || "";
+}
+
+function browseConnectionRequest() {
+  return {
+    destination: els.browseDestination.value.trim(),
+    port: Number(els.browsePort.value || 22),
+    known_hosts: els.browseKnownHosts.value.trim(),
+    identity: els.browseIdentity.value.trim(),
+    password: els.browsePassword.value,
+    authentication: els.browsePassword.value ? "password" : "key",
+  };
+}
+
+function switchBrowseMode(mode) {
+  browseMode = mode;
+  browseCurrentPath = "";
+  browseParentPath = "";
+  browseEntries = [];
+  browseSelected = new Set();
+  els.browseLocalTab.classList.toggle("is-active", mode === "local");
+  els.browseLocalTab.setAttribute("aria-selected", String(mode === "local"));
+  els.browseRemoteTab.classList.toggle("is-active", mode === "remote");
+  els.browseRemoteTab.setAttribute("aria-selected", String(mode === "remote"));
+  els.browseRemoteConnect.hidden = mode !== "remote";
+  els.browsePathInput.value = "";
+  els.browsePathInput.disabled = mode === "remote";
+  els.browseGo.disabled = mode === "remote";
+  els.browseUp.disabled = true;
+  els.browseRefresh.disabled = true;
+  setBrowseNotice("");
+  renderBrowseList();
+}
+
+async function loadBrowseDirectory(targetPath) {
+  if (!targetPath) return;
+  setBrowseNotice("Loading…");
+  try {
+    const listing = browseMode === "local"
+      ? await invoke("ListLocalDirectory", targetPath)
+      : await invoke("ListRemoteDirectory", { ...browseConnectionRequest(), destination: targetPath });
+    browseCurrentPath = listing.path;
+    browseParentPath = listing.parent || "";
+    browseEntries = listing.entries || [];
+    browseSelected = new Set();
+    els.browsePathInput.value = browseCurrentPath;
+    els.browsePathInput.disabled = false;
+    els.browseGo.disabled = false;
+    els.browseUp.disabled = !browseParentPath;
+    els.browseRefresh.disabled = false;
+    setBrowseNotice("");
+    renderBrowseList();
+  } catch (error) {
+    setBrowseNotice(error?.message || String(error), "error");
+  }
+}
+
+function browseEntryPath(name) {
+  if (browseMode === "local") {
+    const separator = browseCurrentPath.includes("\\") ? "\\" : "/";
+    return browseCurrentPath.replace(/[\\/]+$/, "") + separator + name;
+  }
+  return browseCurrentPath.replace(/\/+$/, "") + "/" + name;
+}
+
+function browseEntryRow(entry) {
+  const fullPath = browseEntryPath(entry.name);
+  const row = document.createElement("div");
+  row.className = "browse-entry";
+
+  const checkbox = document.createElement("input");
+  checkbox.type = "checkbox";
+  checkbox.checked = browseSelected.has(fullPath);
+  checkbox.addEventListener("change", () => {
+    if (checkbox.checked) browseSelected.add(fullPath);
+    else browseSelected.delete(fullPath);
+    updateBrowseActions();
+  });
+
+  const kind = document.createElement("span");
+  kind.className = "kind";
+  kind.textContent = entry.is_dir ? "📁" : "📄";
+
+  const name = document.createElement("span");
+  name.className = `entry-name${entry.is_dir ? " is-dir" : ""}`;
+  name.textContent = entry.name;
+  if (entry.is_dir) name.addEventListener("click", () => loadBrowseDirectory(fullPath));
+
+  const size = document.createElement("span");
+  size.className = "entry-size";
+  size.textContent = entry.is_dir ? "" : formatBytes(entry.size);
+
+  const modified = document.createElement("span");
+  modified.className = "entry-time";
+  modified.textContent = entry.mod_time && !entry.mod_time.startsWith("0001-01-01") ? new Date(entry.mod_time).toLocaleString() : "";
+
+  row.append(checkbox, kind, name, size, modified);
+  return row;
+}
+
+function renderBrowseList() {
+  els.browseList.replaceChildren(...browseEntries.map(browseEntryRow));
+  els.browseEmpty.hidden = browseEntries.length !== 0 || !browseCurrentPath;
+  updateBrowseActions();
+}
+
+function updateBrowseActions() {
+  const count = browseSelected.size;
+  els.browseActions.hidden = count === 0;
+  els.browseSelectionCount.textContent = count === 1 ? "1 item selected" : `${count} items selected`;
+}
+
+async function deleteBrowseSelected() {
+  const paths = [...browseSelected];
+  if (paths.length === 0) return;
+  const confirmed = await confirmAction({
+    title: `Permanently delete ${paths.length} item(s)?`,
+    message: `This deletes the selected files and folders (including everything inside a selected folder) right now. It cannot be undone and does not go through Vericopy's transfer verification.`,
+    requireWord: "DELETE",
+  });
+  if (!confirmed) return;
+  els.browseDeleteSelected.disabled = true;
+  try {
+    const result = browseMode === "local"
+      ? await invoke("DeleteLocalPaths", paths)
+      : await invoke("DeleteRemotePaths", browseConnectionRequest(), paths);
+    const failures = result.failures || [];
+    if (failures.length === 0) {
+      setBrowseNotice(`Deleted ${result.deleted} item(s).`, "success");
+    } else {
+      setBrowseNotice(`Deleted ${result.deleted} item(s); ${failures.length} failed — ${failures.map((f) => f.message).join("; ")}`, "error");
+    }
+    await loadBrowseDirectory(browseCurrentPath);
+  } catch (error) {
+    setBrowseNotice(error?.message || String(error), "error");
+  } finally {
+    els.browseDeleteSelected.disabled = false;
+  }
+}
+
+els.browseLocalTab.addEventListener("click", () => switchBrowseMode("local"));
+els.browseRemoteTab.addEventListener("click", () => switchBrowseMode("remote"));
+els.browseConnect.addEventListener("click", () => {
+  const destination = els.browseDestination.value.trim();
+  if (!destination) { setBrowseNotice("Enter a destination first.", "error"); els.browseDestination.focus(); return; }
+  loadBrowseDirectory(destination);
+});
+els.browseGo.addEventListener("click", () => loadBrowseDirectory(els.browsePathInput.value.trim()));
+els.browsePathInput.addEventListener("keydown", (event) => {
+  if (event.key === "Enter") loadBrowseDirectory(els.browsePathInput.value.trim());
+});
+els.browseUp.addEventListener("click", () => { if (browseParentPath) loadBrowseDirectory(browseParentPath); });
+els.browseRefresh.addEventListener("click", () => loadBrowseDirectory(browseCurrentPath));
+els.browseDeleteSelected.addEventListener("click", deleteBrowseSelected);
+
 /* ---------- dashboard + statusbar ---------- */
 
 async function loadDashboard() {
@@ -1230,6 +1415,7 @@ els.noClobber.addEventListener("change", () => { if (els.noClobber.checked) els.
 initializeTheme();
 subscribeToProgress();
 initializeSessions();
+switchBrowseMode("local");
 loadDashboard();
 loadTransferJobs();
 loadHistory();

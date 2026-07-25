@@ -18,6 +18,7 @@
           <button class="tab is-active" type="button" data-view="dashboard" aria-current="page">Dashboard</button>
           <button class="tab" type="button" data-view="transfer">New transfer</button>
           <button class="tab" type="button" data-view="activity">Transfers<span class="tab-badge" id="transfers-tab-badge" hidden>0</span></button>
+          <button class="tab" type="button" data-view="browse">Browse</button>
           <button class="tab" type="button" data-view="help">Help</button>
         </nav>
         <span class="spacer"></span>
@@ -362,6 +363,65 @@
             </section>
           </section>
 
+          <section class="view" data-view-panel="browse" aria-label="Browse">
+            <div class="page-intro">
+              <p class="kicker">Browse and manage files</p>
+              <h1>Look around, then decide what stays.</h1>
+              <p>Browse this computer or a remote destination you can already reach, and delete what you no longer need. Deleting here is permanent, immediate, and does not go through Vericopy's transfer verification.</p>
+            </div>
+
+            <div class="browse-source-toggle" role="tablist" aria-label="Browse location">
+              <button class="btn btn-secondary is-active" type="button" id="browse-local-tab" role="tab" aria-selected="true">This computer</button>
+              <button class="btn btn-secondary" type="button" id="browse-remote-tab" role="tab" aria-selected="false">Remote destination</button>
+            </div>
+
+            <div class="browse-remote-connect" id="browse-remote-connect" hidden>
+              <div class="field-row">
+                <div class="field">
+                  <label for="browse-destination">Destination</label>
+                  <input id="browse-destination" type="text" class="mono" placeholder="user@host:/absolute/path" autocomplete="off" spellcheck="false" />
+                </div>
+                <div class="field">
+                  <label for="browse-port">Port</label>
+                  <input id="browse-port" type="number" min="1" max="65535" placeholder="22" />
+                </div>
+              </div>
+              <div class="field-row">
+                <div class="field">
+                  <label for="browse-known-hosts">known_hosts</label>
+                  <input id="browse-known-hosts" type="text" class="mono" placeholder="~/.ssh/known_hosts" autocomplete="off" spellcheck="false" />
+                </div>
+                <div class="field">
+                  <label for="browse-identity">Identity (optional)</label>
+                  <input id="browse-identity" type="text" class="mono" placeholder="Leave blank to use the SSH agent" autocomplete="off" spellcheck="false" />
+                </div>
+              </div>
+              <div class="field">
+                <label for="browse-password">SSH password (only if this destination uses password authentication)</label>
+                <input id="browse-password" type="password" autocomplete="off" placeholder="Leave blank for key or agent authentication" />
+              </div>
+              <button class="btn btn-primary" type="button" id="browse-connect">Connect and browse</button>
+            </div>
+
+            <div class="browse-panel">
+              <div class="browse-toolbar">
+                <button class="btn btn-quiet btn-sm" type="button" id="browse-up" disabled>&#8593; Up</button>
+                <input class="browse-path-input mono" id="browse-path-input" type="text" placeholder="Choose a location above, then type a starting path here" autocomplete="off" spellcheck="false" disabled />
+                <button class="btn btn-quiet btn-sm" type="button" id="browse-go" disabled>Go</button>
+                <span class="spacer"></span>
+                <button class="btn btn-quiet btn-sm" type="button" id="browse-refresh" disabled>Refresh</button>
+              </div>
+              <div class="notice" id="browse-notice" hidden role="status"></div>
+              <div class="browse-list" id="browse-list" aria-live="polite"></div>
+              <div class="empty-state empty-state-large" id="browse-empty" hidden><p>This folder is empty.</p></div>
+              <div class="browse-actions" id="browse-actions" hidden>
+                <span id="browse-selection-count"></span>
+                <span class="spacer"></span>
+                <button class="btn btn-danger btn-sm" type="button" id="browse-delete-selected">Delete selected</button>
+              </div>
+            </div>
+          </section>
+
           <section class="view" data-view-panel="help" aria-label="Help">
             <div class="page-intro help-intro">
               <p class="kicker">Help and security</p>
@@ -449,6 +509,17 @@
                   <li>A paused job survives fully quitting Vericopy, restarting the machine, or losing the connection. Reopen Vericopy and press Retry to continue it, with Resume partial turned on, from where it left off rather than from the beginning.</li>
                   <li>Jobs still queued or running when Vericopy last closed come back as Paused, waiting for an explicit retry.</li>
                   <li>Password jobs require the password again because Vericopy never stores it.</li>
+                </ul>
+              </article>
+
+              <article class="help-card help-card-wide">
+                <p class="micro-label">Browse</p>
+                <h2>A different kind of view: no verification, no undo.</h2>
+                <p>Browse lets you look at this computer or an already-reachable remote destination and delete files or folders directly. It is separate from transfers on purpose: nothing here is queued, verified, or reversible.</p>
+                <ul>
+                  <li>Deleting a folder removes everything inside it, recursively, in one action.</li>
+                  <li>Confirming a delete requires typing a word, not a single click, but does not require typing the exact file or folder name.</li>
+                  <li>Remote browsing opens its own connection using the destination and credentials you enter in Browse; it does not reuse a saved session automatically.</li>
                 </ul>
               </article>
 
