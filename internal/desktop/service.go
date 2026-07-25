@@ -527,5 +527,9 @@ func (s *Service) Close() {
 // FormatResult is deliberately small so the UI does not have to reconstruct a
 // human outcome from fields alone.
 func FormatResult(result transfer.Result) string {
-	return fmt.Sprintf("Verified %d file(s), %d bytes\nSHA-256: %s", result.Files, result.Bytes, result.SHA256)
+	summary := fmt.Sprintf("Verified %d file(s), %d bytes\nSHA-256: %s", result.Files, result.Bytes, result.SHA256)
+	if result.SkippedFiles > 0 {
+		summary += fmt.Sprintf("\nSkipped %d file(s) that already existed", result.SkippedFiles)
+	}
+	return summary
 }

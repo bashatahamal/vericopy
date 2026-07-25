@@ -659,6 +659,37 @@ function jobProgress(job) {
   return { transferred, percentage: Math.round((transferred / job.total_bytes) * 100) };
 }
 
+// jobSpeeds tracks, per job id, the last observed transferred-bytes reading
+// and when it was observed, plus a smoothed rate so the displayed speed
+// does not jitter between two nearly-simultaneous progress events.
+const jobSpeeds = new Map();
+
+function jobSpeedBytesPerSecond(job) {
+  const now = Date.now();
+  const previous = jobSpeeds.get(job.id);
+  const transferred = job.transferred_bytes || 0;
+  if (!previous || job.status !== "running") {
+    jobSpeeds.set(job.id, { bytes: transferred, time: now, rate: 0 });
+    return job.status === "running" ? previous?.rate || 0 : 0;
+  }
+  const elapsedSeconds = (now - previous.time) / 1000;
+  const deltaBytes = transferred - previous.bytes;
+  let rate = previous.rate;
+  if (elapsedSeconds > 0.05 && deltaBytes >= 0) {
+    const instantRate = deltaBytes / elapsedSeconds;
+    // Exponential moving average: smooths out uneven event timing without
+    // lagging so far behind that the number feels stale.
+    rate = previous.rate === 0 ? instantRate : previous.rate * 0.6 + instantRate * 0.4;
+    jobSpeeds.set(job.id, { bytes: transferred, time: now, rate });
+  }
+  return rate;
+}
+
+function formatSpeed(bytesPerSecond) {
+  if (!(bytesPerSecond > 0)) return "";
+  return `${formatBytes(bytesPerSecond)}/s`;
+}
+
 function jobRow(job, compact = false) {
   const row = document.createElement("article");
   row.className = `job-row${compact ? " is-compact" : ""}`;
@@ -687,6 +718,7 @@ function jobRow(job, compact = false) {
     row.append(detail);
 
     const progress = jobProgress(job);
+    const speed = job.status === "running" ? jobSpeedBytesPerSecond(job) : 0;
     if (progress && (job.status === "running" || job.status === "cancelling" || job.status === "pausing")) {
       const progressWrap = document.createElement("div");
       progressWrap.className = "job-progress";
@@ -697,7 +729,9 @@ function jobRow(job, compact = false) {
       fill.style.width = `${progress.percentage}%`;
       bar.append(fill);
       const progressText = document.createElement("span");
-      progressText.textContent = `${formatBytes(progress.transferred)} of ${formatBytes(job.total_bytes)} · ${progress.percentage}%`;
+      const fileCount = job.total_files > 1 ? `File ${job.current_file || 1} of ${job.total_files} · ` : "";
+      const speedText = formatSpeed(speed);
+      progressText.textContent = `${fileCount}${formatBytes(progress.transferred)} of ${formatBytes(job.total_bytes)} · ${progress.percentage}%${speedText ? ` · ${speedText}` : ""}`;
       progressWrap.append(bar, progressText);
       row.append(progressWrap);
     }
@@ -750,7 +784,8 @@ function jobRow(job, compact = false) {
 function jobSignature(job) {
   return [
     job.status, job.phase, job.message, job.transferred_bytes, job.total_bytes,
-    job.resumed_bytes, job.files, job.skipped_files, job.bytes, job.destination, job.authentication,
+    job.resumed_bytes, job.current_file, job.total_files, job.files, job.skipped_files,
+    job.bytes, job.destination, job.authentication,
   ].join("|");
 }
 
