@@ -232,6 +232,7 @@
                     <label data-tip="Copy the folder and everything inside it. Required when the source is a folder."><input id="recursive" name="recursive" type="checkbox" /><span class="tip-text">Recursive</span></label>
                     <label data-tip="Continue a compatible partial upload instead of restarting the whole file."><input id="resume" name="resume" type="checkbox" checked /><span class="tip-text">Resume partial</span></label>
                     <label data-tip="Allow replacing a file that already exists at the destination. Off protects existing files."><input id="overwrite" name="overwrite" type="checkbox" /><span class="tip-text">Overwrite existing</span></label>
+                    <label data-tip="Skip files and folders that already exist at the destination instead of failing, and copy only what is missing."><input id="no-clobber" name="no-clobber" type="checkbox" /><span class="tip-text">Skip existing</span></label>
                     <label data-tip="Keep the source modification time on the remote copy."><input id="preserve-time" name="preserve-time" type="checkbox" /><span class="tip-text">Preserve mtime</span></label>
                   </div>
 
@@ -372,6 +373,18 @@
                   <li><strong>Service readonly</strong> and <strong>Shared</strong> require your SSH account and the service account to already share a destination group on the server. If they do not, the service loses read access even though the transfer succeeds.</li>
                   <li><strong>Public readonly</strong> makes the file world-readable at the destination. Use it when there is no shared group and any local account on that server may read the file, matching a common single-user home server setup.</li>
                   <li><strong>Preserve mode</strong> copies the source file's permission bits as-is. It assumes a POSIX source. From a Windows source there is no equivalent mode to carry over, so it will not reproduce a specific destination permission and should not be used to grant a remote service access.</li>
+                </ul>
+              </article>
+
+              <article class="help-card help-card-wide">
+                <p class="micro-label">Re-running a folder transfer</p>
+                <h2>Overwrite, Skip existing, and the default are three different answers to "it's already there."</h2>
+                <p>By default, Vericopy protects what already exists: if the destination file or folder is already there, the transfer stops rather than guessing what you meant.</p>
+                <ul>
+                  <li><strong>Overwrite existing</strong> replaces anything already at the destination with the source.</li>
+                  <li><strong>Skip existing</strong> leaves anything already at the destination untouched and copies only what is missing, continuing past files and folders that are already there instead of stopping. Useful for adding new files to a folder you already partly copied.</li>
+                  <li>Skip existing checks by name only, not content. A same-named file that differs from the source is left as-is, not compared or replaced.</li>
+                  <li>This is different from <strong>Resume partial</strong>, which continues a single file's own interrupted upload. Skip existing is about entire files that a previous run already finished.</li>
                 </ul>
               </article>
 

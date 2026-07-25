@@ -258,6 +258,89 @@ func TestOverwriteAndNoClobberConflict(t *testing.T) {
 	}
 }
 
+func TestNoClobberSkipsExistingFile(t *testing.T) {
+	source := filepath.Join(t.TempDir(), "source")
+	if err := os.WriteFile(source, []byte("new content"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	remoteFS := localRemote{root: t.TempDir()}
+	if err := os.WriteFile(remoteFS.local("/target"), []byte("old content"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	policy, _ := permissions.Resolve("private", "", "")
+	result, err := (transfer.Engine{Remote: remoteFS}).Copy(context.Background(), source, "/target", transfer.Options{NoClobber: true, Policy: policy})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Files != 0 || result.SkippedFiles != 1 {
+		t.Fatalf("unexpected result: %#v", result)
+	}
+	got, err := os.ReadFile(remoteFS.local("/target"))
+	if err != nil || string(got) != "old content" {
+		t.Fatalf("existing file was modified: content=%q err=%v", got, err)
+	}
+}
+
+// TestNoClobberDirectoryMergesAndSkipsExistingFiles is the exact scenario a
+// user hits re-copying a folder after an earlier run already delivered some
+// of its files: the destination directory already exists, one file inside
+// it already matches a source file, and another source file is new. Without
+// --overwrite or --no-clobber this used to fail the entire copy immediately
+// just because the destination directory existed, before even looking at
+// which files inside it were actually new.
+func TestNoClobberDirectoryMergesAndSkipsExistingFiles(t *testing.T) {
+	sourceRoot := t.TempDir()
+	if err := os.WriteFile(filepath.Join(sourceRoot, "already-there.mkv"), []byte("source version"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(sourceRoot, "new-episode.mkv"), []byte("new episode"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	remoteFS := localRemote{root: t.TempDir()}
+	if err := os.MkdirAll(remoteFS.local("/movies/TYaL"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(remoteFS.local("/movies/TYaL/already-there.mkv"), []byte("remote version"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	policy, _ := permissions.Resolve("private", "", "")
+	result, err := (transfer.Engine{Remote: remoteFS}).Copy(context.Background(), sourceRoot, "/movies/TYaL",
+		transfer.Options{Recursive: true, NoClobber: true, Policy: policy})
+	if err != nil {
+		t.Fatalf("an existing destination directory blocked the merge: %v", err)
+	}
+	if result.Files != 1 || result.SkippedFiles != 1 {
+		t.Fatalf("unexpected result: %#v", result)
+	}
+	existing, err := os.ReadFile(remoteFS.local("/movies/TYaL/already-there.mkv"))
+	if err != nil || string(existing) != "remote version" {
+		t.Fatalf("the already-present file was clobbered: content=%q err=%v", existing, err)
+	}
+	added, err := os.ReadFile(remoteFS.local("/movies/TYaL/new-episode.mkv"))
+	if err != nil || string(added) != "new episode" {
+		t.Fatalf("the new file was not copied: content=%q err=%v", added, err)
+	}
+}
+
+func TestNoClobberDirectoryStillRejectsPlainMergeAttempt(t *testing.T) {
+	// Without NoClobber (and without Overwrite), an existing destination
+	// directory must still fail fast, exactly as before. NoClobber is an
+	// explicit opt-in to merging, not a change to the default.
+	sourceRoot := t.TempDir()
+	if err := os.WriteFile(filepath.Join(sourceRoot, "file.txt"), []byte("content"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	remoteFS := localRemote{root: t.TempDir()}
+	if err := os.MkdirAll(remoteFS.local("/target"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	policy, _ := permissions.Resolve("private", "", "")
+	_, err := (transfer.Engine{Remote: remoteFS}).Copy(context.Background(), sourceRoot, "/target", transfer.Options{Recursive: true, Policy: policy})
+	if err == nil || verrors.As(err).Code != verrors.CodeDestinationExists {
+		t.Fatalf("existing destination directory was not protected by default: %v", err)
+	}
+}
+
 type corruptReaderRemote struct{ localRemote }
 
 func (r corruptReaderRemote) Open(name string) (io.ReadCloser, error) {

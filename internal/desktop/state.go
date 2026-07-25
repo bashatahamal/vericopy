@@ -55,6 +55,7 @@ type SessionProfile struct {
 	Recursive      bool      `json:"recursive"`
 	Resume         bool      `json:"resume"`
 	Overwrite      bool      `json:"overwrite"`
+	NoClobber      bool      `json:"no_clobber"`
 	PreserveTime   bool      `json:"preserve_time"`
 	Source         string    `json:"source"`
 	UpdatedAt      time.Time `json:"updated_at"`
@@ -478,6 +479,9 @@ func normalizeProfile(profile ConnectionProfile) (ConnectionProfile, error) {
 }
 
 func normalizeSession(session SessionProfile) (SessionProfile, error) {
+	if session.Overwrite && session.NoClobber {
+		return SessionProfile{}, verrors.New(verrors.CodeInvalidArguments, "overwrite and no-clobber cannot be used together")
+	}
 	name, err := normalizeSessionName(session.Name)
 	if err != nil {
 		return SessionProfile{}, err

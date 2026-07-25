@@ -132,6 +132,7 @@ type TransferRequest struct {
 	Recursive      bool   `json:"recursive"`
 	Resume         bool   `json:"resume"`
 	Overwrite      bool   `json:"overwrite"`
+	NoClobber      bool   `json:"no_clobber"`
 	PreserveTime   bool   `json:"preserve_time"`
 }
 
@@ -161,6 +162,7 @@ type TransferReview struct {
 	KnownHosts     string             `json:"known_hosts"`
 	Resume         bool               `json:"resume"`
 	Overwrite      bool               `json:"overwrite"`
+	NoClobber      bool               `json:"no_clobber"`
 	PreserveTime   bool               `json:"preserve_time"`
 	ReadableBy     string             `json:"readable_by,omitempty"`
 }
@@ -203,6 +205,9 @@ func (s *Service) ReviewTransfer(request TransferRequest) (TransferReview, error
 }
 
 func prepare(request TransferRequest) (preparedTransfer, error) {
+	if request.Overwrite && request.NoClobber {
+		return preparedTransfer{}, verrors.New(verrors.CodeInvalidArguments, "overwrite and no-clobber cannot be used together")
+	}
 	if request.Port == 0 {
 		request.Port = 22
 	}
@@ -272,7 +277,7 @@ func prepare(request TransferRequest) (preparedTransfer, error) {
 		},
 		Destination:    DestinationSummary{User: destination.User, Host: destination.Host, Path: destination.Path, Port: request.Port},
 		Authentication: request.Authentication, Permissions: request.Permissions, KnownHosts: request.KnownHosts, Resume: request.Resume,
-		Overwrite: request.Overwrite, PreserveTime: request.PreserveTime, ReadableBy: request.ReadableBy,
+		Overwrite: request.Overwrite, NoClobber: request.NoClobber, PreserveTime: request.PreserveTime, ReadableBy: request.ReadableBy,
 	}
 	info, inspectErr := localpath.Inspect(request.Source, "")
 	if inspectErr == nil {
@@ -349,7 +354,7 @@ func (s *Service) executePrepared(ctx context.Context, prepared preparedTransfer
 	engine := transfer.Engine{Remote: remoteFS, Hasher: remotehash.Hasher{Runner: access.SSHRunner{Client: sshConnection.Client}}}
 	result, err := engine.Copy(ctx, prepared.source, prepared.destination.Path, transfer.Options{
 		Recursive: prepared.request.Recursive, Resume: prepared.request.Resume,
-		Overwrite: prepared.request.Overwrite, PreserveTime: prepared.request.PreserveTime,
+		Overwrite: prepared.request.Overwrite, NoClobber: prepared.request.NoClobber, PreserveTime: prepared.request.PreserveTime,
 		Policy: prepared.policy, GID: gid, Progress: progress,
 	})
 	if err != nil {
