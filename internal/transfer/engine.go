@@ -72,9 +72,21 @@ type Result struct {
 	DryRun       bool   `json:"dry_run"`
 }
 
-// Engine performs transfers without invoking a remote shell.
+// RemoteHasher optionally computes a remote file's SHA-256 digest without
+// reading it back over SFTP. It is advisory: any error, unavailability, or
+// digest mismatch falls back to the authoritative byte-for-byte read-back
+// verification, so a bug or an unsupported remote never weakens the
+// transfer guarantee, only its speed.
+type RemoteHasher interface {
+	HashSHA256(ctx context.Context, path string) (digest string, ok bool, err error)
+}
+
+// Engine performs transfers without invoking a remote shell for the file
+// transfer itself. Hasher, if set, may use a remote shell command purely to
+// accelerate verification; see RemoteHasher.
 type Engine struct {
 	Remote RemoteFS
+	Hasher RemoteHasher
 }
 
 func (e Engine) report(options Options, progress Progress) {
@@ -289,21 +301,23 @@ func (e Engine) copyFile(ctx context.Context, source, destination string, option
 		Phase: "verifying", Source: source, Destination: destination,
 		TransferredBytes: localBytes, TotalBytes: initial.Size(), ResumedBytes: offset,
 	})
-	remoteReader, err := e.Remote.Open(partialPath)
-	if err != nil {
-		return Result{}, verrors.Wrap(verrors.CodeVerificationFailed, "could not reopen the remote partial file", err)
-	}
-	remoteDigest, remoteBytes, err := checksum.SHA256(remoteReader)
-	_ = remoteReader.Close()
-	if err != nil {
-		return Result{}, verrors.Wrap(verrors.CodeVerificationFailed, "could not calculate the remote SHA-256", err)
-	}
-	if localBytes != remoteBytes || localDigest != remoteDigest {
-		return Result{}, verrors.New(verrors.CodeChecksumMismatch,
-			"the remote partial file does not match the source").WithDetails(map[string]any{
-			"local_size": localBytes, "remote_size": remoteBytes,
-			"local_sha256": localDigest, "remote_sha256": remoteDigest,
-		})
+	if !e.verifyRemoteFast(ctx, partialPath, localDigest, localBytes) {
+		remoteReader, err := e.Remote.Open(partialPath)
+		if err != nil {
+			return Result{}, verrors.Wrap(verrors.CodeVerificationFailed, "could not reopen the remote partial file", err)
+		}
+		remoteDigest, remoteBytes, err := checksum.SHA256(remoteReader)
+		_ = remoteReader.Close()
+		if err != nil {
+			return Result{}, verrors.Wrap(verrors.CodeVerificationFailed, "could not calculate the remote SHA-256", err)
+		}
+		if localBytes != remoteBytes || localDigest != remoteDigest {
+			return Result{}, verrors.New(verrors.CodeChecksumMismatch,
+				"the remote partial file does not match the source").WithDetails(map[string]any{
+				"local_size": localBytes, "remote_size": remoteBytes,
+				"local_sha256": localDigest, "remote_sha256": remoteDigest,
+			})
+		}
 	}
 	if err := e.applyFilePolicy(partialPath, initial, options); err != nil {
 		return Result{}, err
@@ -331,6 +345,26 @@ func (e Engine) copyFile(ctx context.Context, source, destination string, option
 		TransferredBytes: localBytes, TotalBytes: initial.Size(), ResumedBytes: offset,
 	})
 	return result, nil
+}
+
+// verifyRemoteFast reports whether path was confirmed to match localDigest
+// and localBytes using e.Hasher instead of reading the remote file back. It
+// returns false on any uncertainty at all (no hasher, unavailable, error, or
+// mismatch) so the caller always falls back to the authoritative read-back
+// check; this method never itself declares a transfer failed.
+func (e Engine) verifyRemoteFast(ctx context.Context, path, localDigest string, localBytes int64) bool {
+	if e.Hasher == nil {
+		return false
+	}
+	digest, ok, err := e.Hasher.HashSHA256(ctx, path)
+	if err != nil || !ok || digest != localDigest {
+		return false
+	}
+	remoteInfo, err := e.Remote.Lstat(path)
+	if err != nil {
+		return false
+	}
+	return remoteInfo.Size() == localBytes
 }
 
 func (e Engine) preparePartial(source, partialPath, sidecarPath string, expected PartialMetadata, resume bool) (int64, error) {

@@ -376,6 +376,16 @@
               </article>
 
               <article class="help-card help-card-wide">
+                <p class="micro-label">Verifying SHA-256</p>
+                <h2>Why verification takes about as long as the transfer.</h2>
+                <p>Vericopy proves the destination matches the source by independently reading the bytes that actually landed, not by trusting that the upload looked successful. When the server supports a standard hash command, Vericopy asks it to hash the file locally and only sends back the short digest, which is far faster than reading the whole file back. When it does not, Vericopy reads the destination back over SFTP and hashes it here instead, which moves roughly the same amount of data as the transfer itself did.</p>
+                <ul>
+                  <li>If verification takes about as long as the upload, that is expected.</li>
+                  <li>Either path ends in the same independent size-and-SHA-256 comparison; the faster path only changes where the hashing happens.</li>
+                </ul>
+              </article>
+
+              <article class="help-card help-card-wide">
                 <p class="micro-label">Transfer manager</p>
                 <h2>Queue work, then minimize Vericopy.</h2>
                 <p>Each reviewed request becomes a separate transfer job. Up to two jobs run at once and additional work waits in order. Minimized windows keep transferring. Closing Vericopy while work is active asks whether to keep it open or quit and interrupt safely.</p>

@@ -1,6 +1,7 @@
 package transfer_test
 
 import (
+	"bytes"
 	"context"
 	"io"
 	"io/fs"
@@ -12,6 +13,7 @@ import (
 	"time"
 
 	nativesftp "github.com/bashatahamal/vericopy/internal/backend/sftp"
+	"github.com/bashatahamal/vericopy/internal/checksum"
 	"github.com/bashatahamal/vericopy/internal/permissions"
 	"github.com/bashatahamal/vericopy/internal/transfer"
 	"github.com/bashatahamal/vericopy/internal/verrors"
@@ -42,6 +44,107 @@ func (r localRemote) Rename(oldName, newName string) error {
 	return os.Rename(r.local(oldName), r.local(newName))
 }
 func (r localRemote) Remove(name string) error { return os.Remove(r.local(name)) }
+
+type countingOpenRemote struct {
+	localRemote
+	opens *int
+}
+
+func (r countingOpenRemote) Open(name string) (io.ReadCloser, error) {
+	*r.opens++
+	return r.localRemote.Open(name)
+}
+
+type stubHasher struct {
+	digest string
+	ok     bool
+	err    error
+	calls  int
+}
+
+func (h *stubHasher) HashSHA256(_ context.Context, _ string) (string, bool, error) {
+	h.calls++
+	return h.digest, h.ok, h.err
+}
+
+func TestCopyUsesRemoteHasherFastPathAndSkipsReadback(t *testing.T) {
+	source := filepath.Join(t.TempDir(), "movie.mkv")
+	content := strings.Repeat("large-file-content", 2048)
+	if err := os.WriteFile(source, []byte(content), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	opens := 0
+	remoteFS := countingOpenRemote{localRemote: localRemote{root: t.TempDir()}, opens: &opens}
+	policy, _ := permissions.Resolve("private", "", "")
+
+	// Compute the real digest up front so the stub hasher reports the truth,
+	// as a real remote hash command would.
+	data, err := os.ReadFile(source)
+	if err != nil {
+		t.Fatal(err)
+	}
+	localDigest, _, err := checksum.SHA256(bytes.NewReader(data))
+	if err != nil {
+		t.Fatal(err)
+	}
+	hasher := &stubHasher{digest: localDigest, ok: true}
+
+	result, err := (transfer.Engine{Remote: remoteFS, Hasher: hasher}).Copy(
+		context.Background(), source, "/movies/movie.mkv", transfer.Options{Policy: policy})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !result.Verified {
+		t.Fatal("result was not marked verified")
+	}
+	if hasher.calls == 0 {
+		t.Fatal("the remote hasher was never consulted")
+	}
+	if opens != 0 {
+		t.Fatalf("expected the fast path to skip reading the remote file back, but Open was called %d time(s)", opens)
+	}
+}
+
+func TestCopyFallsBackWhenHasherMismatches(t *testing.T) {
+	source := filepath.Join(t.TempDir(), "movie.mkv")
+	if err := os.WriteFile(source, []byte("actual matching content"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	remoteFS := localRemote{root: t.TempDir()}
+	policy, _ := permissions.Resolve("private", "", "")
+	// A hasher that lies (wrong digest) must not cause a false failure or a
+	// false success: the authoritative read-back should still run and find
+	// the real content actually matches.
+	hasher := &stubHasher{digest: "0000000000000000000000000000000000000000000000000000000000000000", ok: true}
+
+	result, err := (transfer.Engine{Remote: remoteFS, Hasher: hasher}).Copy(
+		context.Background(), source, "/target", transfer.Options{Policy: policy})
+	if err != nil {
+		t.Fatalf("expected the read-back fallback to still succeed, got: %v", err)
+	}
+	if !result.Verified {
+		t.Fatal("result was not marked verified")
+	}
+}
+
+func TestCopyFallsBackWhenHasherUnavailable(t *testing.T) {
+	source := filepath.Join(t.TempDir(), "movie.mkv")
+	if err := os.WriteFile(source, []byte("some content"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	remoteFS := localRemote{root: t.TempDir()}
+	policy, _ := permissions.Resolve("private", "", "")
+	hasher := &stubHasher{ok: false}
+
+	result, err := (transfer.Engine{Remote: remoteFS, Hasher: hasher}).Copy(
+		context.Background(), source, "/target", transfer.Options{Policy: policy})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !result.Verified {
+		t.Fatal("result was not marked verified")
+	}
+}
 
 func TestCopyAndVerify(t *testing.T) {
 	source := filepath.Join(t.TempDir(), "quarterly-report.zip")

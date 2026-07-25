@@ -39,18 +39,20 @@ func (e Engine) Verify(ctx context.Context, source, destination string) (Result,
 	if err != nil {
 		return Result{}, err
 	}
-	remote, err := e.Remote.Open(destination)
-	if err != nil {
-		return Result{}, verrors.Wrap(verrors.CodeVerificationFailed, "could not open the remote destination", err)
-	}
-	remoteDigest, remoteBytes, err := checksum.SHA256(&contextReader{ctx: ctx, reader: remote})
-	_ = remote.Close()
-	if err != nil {
-		return Result{}, err
-	}
-	if localBytes != remoteBytes || localDigest != remoteDigest {
-		return Result{}, verrors.New(verrors.CodeChecksumMismatch, "the source and destination do not match").
-			WithDetails(map[string]any{"local_size": localBytes, "remote_size": remoteBytes, "local_sha256": localDigest, "remote_sha256": remoteDigest})
+	if !e.verifyRemoteFast(ctx, destination, localDigest, localBytes) {
+		remote, err := e.Remote.Open(destination)
+		if err != nil {
+			return Result{}, verrors.Wrap(verrors.CodeVerificationFailed, "could not open the remote destination", err)
+		}
+		remoteDigest, remoteBytes, err := checksum.SHA256(&contextReader{ctx: ctx, reader: remote})
+		_ = remote.Close()
+		if err != nil {
+			return Result{}, err
+		}
+		if localBytes != remoteBytes || localDigest != remoteDigest {
+			return Result{}, verrors.New(verrors.CodeChecksumMismatch, "the source and destination do not match").
+				WithDetails(map[string]any{"local_size": localBytes, "remote_size": remoteBytes, "local_sha256": localDigest, "remote_sha256": remoteDigest})
+		}
 	}
 	return Result{Source: source, Destination: destination, Files: 1, Bytes: localBytes, SHA256: localDigest, Verified: true}, nil
 }

@@ -17,6 +17,7 @@ import (
 	"github.com/bashatahamal/vericopy/internal/localpath"
 	"github.com/bashatahamal/vericopy/internal/permissions"
 	"github.com/bashatahamal/vericopy/internal/remote"
+	"github.com/bashatahamal/vericopy/internal/remotehash"
 	"github.com/bashatahamal/vericopy/internal/sshclient"
 	"github.com/bashatahamal/vericopy/internal/transfer"
 	"github.com/bashatahamal/vericopy/internal/verrors"
@@ -345,7 +346,8 @@ func (s *Service) executePrepared(ctx context.Context, prepared preparedTransfer
 		gid = &resolved
 	}
 
-	result, err := (transfer.Engine{Remote: remoteFS}).Copy(ctx, prepared.source, prepared.destination.Path, transfer.Options{
+	engine := transfer.Engine{Remote: remoteFS, Hasher: remotehash.Hasher{Runner: access.SSHRunner{Client: sshConnection.Client}}}
+	result, err := engine.Copy(ctx, prepared.source, prepared.destination.Path, transfer.Options{
 		Recursive: prepared.request.Recursive, Resume: prepared.request.Resume,
 		Overwrite: prepared.request.Overwrite, PreserveTime: prepared.request.PreserveTime,
 		Policy: prepared.policy, GID: gid, Progress: progress,

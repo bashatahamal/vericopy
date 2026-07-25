@@ -11,8 +11,10 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/bashatahamal/vericopy/internal/access"
 	nativesftp "github.com/bashatahamal/vericopy/internal/backend/sftp"
 	"github.com/bashatahamal/vericopy/internal/permissions"
+	"github.com/bashatahamal/vericopy/internal/remotehash"
 	"github.com/bashatahamal/vericopy/internal/sshclient"
 	"github.com/bashatahamal/vericopy/internal/transfer"
 	"github.com/bashatahamal/vericopy/internal/verrors"
@@ -141,6 +143,67 @@ func TestInterruptedUploadResumes(t *testing.T) {
 	}
 	if !result.Verified || result.ResumedBytes == 0 {
 		t.Fatalf("upload did not resume: %#v", result)
+	}
+}
+
+func TestCopyUsesRemoteHasherAgainstRealServer(t *testing.T) {
+	environment := integrationEnvironment(t)
+	sshConnection, remoteFS := connect(t, environment)
+	source := filepath.Join(t.TempDir(), "hashed.bin")
+	if err := os.WriteFile(source, []byte(strings.Repeat("verify-me-fast", 8192)), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	policy, _ := permissions.Resolve("private", "", "")
+	destination := "/data/hashed-" + strconv.Itoa(os.Getpid()) + ".bin"
+	hasher := remotehash.Hasher{Runner: access.SSHRunner{Client: sshConnection.Client}}
+	result, err := (transfer.Engine{Remote: remoteFS, Hasher: hasher}).Copy(context.Background(), source, destination, transfer.Options{Policy: policy})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !result.Verified || result.SHA256 == "" {
+		t.Fatalf("unexpected result: %#v", result)
+	}
+	// Independently ask the real container to hash the file it just
+	// received. This proves sha256sum is actually reachable on the
+	// container and that the digest it returns for this specific
+	// destination path round-trips correctly through real quoting and
+	// parsing over a live SSH exec channel, not just against a stub.
+	digest, ok, hashErr := hasher.HashSHA256(context.Background(), destination)
+	if hashErr != nil || !ok {
+		t.Fatalf("remote hasher unavailable against the real container: ok=%v err=%v", ok, hashErr)
+	}
+	if digest != result.SHA256 {
+		t.Fatalf("remote digest %s does not match transfer result %s", digest, result.SHA256)
+	}
+}
+
+func TestRemoteHasherHandlesHostileFilenames(t *testing.T) {
+	environment := integrationEnvironment(t)
+	sshConnection, remoteFS := connect(t, environment)
+	source := filepath.Join(t.TempDir(), "tricky.bin")
+	if err := os.WriteFile(source, []byte("tricky path content"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	policy, _ := permissions.Resolve("private", "", "")
+	// A filename built to break naive shell interpolation: single quotes,
+	// a subshell, backticks, and a semicolon. If quoting is wrong this
+	// either corrupts the hash result or, in the worst case, executes
+	// something on the container instead of just hashing a file.
+	destination := "/data/tricky-" + strconv.Itoa(os.Getpid()) + " it's a $(id) `id` ; echo hi.bin"
+	hasher := remotehash.Hasher{Runner: access.SSHRunner{Client: sshConnection.Client}}
+	result, err := (transfer.Engine{Remote: remoteFS, Hasher: hasher}).Copy(context.Background(), source, destination, transfer.Options{Policy: policy})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !result.Verified {
+		t.Fatalf("unexpected result: %#v", result)
+	}
+	info, err := remoteFS.Stat(destination)
+	if err != nil {
+		t.Fatalf("the destination was not created under its literal hostile name: %v", err)
+	}
+	if info.Size() != int64(len("tricky path content")) {
+		t.Fatalf("unexpected remote file size: %d", info.Size())
 	}
 }
 

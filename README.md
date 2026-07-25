@@ -130,9 +130,18 @@ deliberately redacted.
 ## Transfer guarantees
 
 Vericopy uses native SFTP by default and never interpolates selected file paths
-into a remote shell command. A successful result means the remote bytes matched
-the source bytes Vericopy observed by both size and SHA-256 before the final
-name was applied.
+into a remote shell command for the transfer itself. A successful result means
+the remote bytes matched the source bytes Vericopy observed by both size and
+SHA-256 before the final name was applied.
+
+Verification tries a fast path first: if the server accepts a standard remote
+hash command (`sha256sum` or `shasum -a 256`), Vericopy runs it there instead
+of reading the whole file back over SFTP just to hash it locally. The
+destination path is always passed through strict POSIX shell quoting, never
+raw string interpolation. Any failure, unavailability, or digest mismatch on
+that fast path falls back to reading the destination back over SFTP and
+hashing it locally — the original, authoritative check — so this can only
+make a successful verification faster, never weaker.
 
 That result does not prove that the source file is trustworthy or malware-free,
 and it cannot prevent a remote administrator from changing a file later. Read
