@@ -86,7 +86,7 @@ func parseDigestLine(output []byte) (string, bool) {
 }
 
 // shellQuote wraps path in single quotes so a POSIX shell treats it as one
-// literal argument, escaping embedded single quotes as '\''. SSH's exec
+// literal argument, escaping embedded single quotes. SSH's exec
 // request carries a single command string that the server hands to a shell
 // (RFC 4254 6.5) rather than an argv array, so this is the standard safe way
 // to pass an untrusted string through it. It rejects NUL bytes, which cannot
