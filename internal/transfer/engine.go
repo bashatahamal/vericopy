@@ -17,7 +17,9 @@ import (
 
 	nativesftp "github.com/bashatahamal/vericopy/internal/backend/sftp"
 	"github.com/bashatahamal/vericopy/internal/checksum"
+	"github.com/bashatahamal/vericopy/internal/medianame"
 	"github.com/bashatahamal/vericopy/internal/permissions"
+	"github.com/bashatahamal/vericopy/internal/thumbnail"
 	"github.com/bashatahamal/vericopy/internal/verrors"
 )
 
@@ -38,15 +40,17 @@ type RemoteFS interface {
 
 // Options is the verified transfer policy.
 type Options struct {
-	Recursive    bool
-	Resume       bool
-	Overwrite    bool
-	NoClobber    bool
-	PreserveTime bool
-	DryRun       bool
-	Policy       permissions.Policy
-	GID          *int
-	Progress     func(Progress)
+	Recursive          bool
+	Resume             bool
+	Overwrite          bool
+	NoClobber          bool
+	PreserveTime       bool
+	DryRun             bool
+	FixMediaNames      bool
+	GenerateThumbnails bool
+	Policy             permissions.Policy
+	GID                *int
+	Progress           func(Progress)
 }
 
 // Progress is an honest per-file transfer update. Directory transfers emit an
@@ -242,37 +246,17 @@ func (e Engine) copyFile(ctx context.Context, source, destination string, option
 	if err := e.validateRemoteParents(destination); err != nil {
 		return Result{}, err
 	}
-	if existing, statErr := e.Remote.Lstat(destination); statErr == nil {
-		if existing.Mode()&fs.ModeSymlink != 0 {
-			return Result{}, verrors.New(verrors.CodeUnsupportedFileType,
-				fmt.Sprintf("remote symbolic link %q is not followed", destination))
-		}
-		if existing.IsDir() {
-			destination = path.Join(destination, filepath.Base(source))
-			result.Destination = destination
-			existing, statErr = e.Remote.Lstat(destination)
-			if statErr == nil && existing.Mode()&fs.ModeSymlink != 0 {
-				return Result{}, verrors.New(verrors.CodeUnsupportedFileType,
-					fmt.Sprintf("remote symbolic link %q is not followed", destination))
-			}
-		}
-		if statErr == nil && options.NoClobber {
-			e.report(options, Progress{
-				Phase: "skipped", Source: source, Destination: destination, TotalBytes: initial.Size(),
-				CurrentFile: fileIndex, TotalFiles: totalFiles,
-			})
-			return Result{Source: source, Destination: destination, SkippedFiles: 1, DryRun: options.DryRun}, nil
-		}
-		if statErr == nil && !options.Overwrite {
-			return Result{}, verrors.New(verrors.CodeDestinationExists,
-				fmt.Sprintf("destination %q already exists", destination)).WithHint(
-				"Choose another destination, pass --overwrite explicitly, or pass --no-clobber to skip it and copy the rest.")
-		}
-		if statErr != nil && !isNotExist(statErr) {
-			return Result{}, verrors.Wrap(verrors.CodeDestinationNotWritable, "the destination could not be inspected", statErr)
-		}
-	} else if !isNotExist(statErr) {
-		return Result{}, verrors.Wrap(verrors.CodeDestinationNotWritable, "the destination could not be inspected", statErr)
+	destination, skip, err := e.resolveDestination(source, destination, options)
+	if err != nil {
+		return Result{}, err
+	}
+	result.Destination = destination
+	if skip {
+		e.report(options, Progress{
+			Phase: "skipped", Source: source, Destination: destination, TotalBytes: initial.Size(),
+			CurrentFile: fileIndex, TotalFiles: totalFiles,
+		})
+		return Result{Source: source, Destination: destination, SkippedFiles: 1, DryRun: options.DryRun}, nil
 	}
 
 	localFile, err := os.Open(source)
@@ -368,12 +352,108 @@ func (e Engine) copyFile(ctx context.Context, source, destination string, option
 	}
 	_ = e.Remote.Remove(sidecarPath)
 	result.Bytes, result.SHA256, result.Verified = localBytes, localDigest, true
+	if options.GenerateThumbnails {
+		if err := e.uploadThumbnail(destination, options); err != nil {
+			return Result{}, err
+		}
+	}
 	e.report(options, Progress{
 		Phase: "verified", Source: source, Destination: destination,
 		TransferredBytes: localBytes, TotalBytes: initial.Size(), ResumedBytes: offset,
 		CurrentFile: fileIndex, TotalFiles: totalFiles,
 	})
 	return result, nil
+}
+
+// resolveDestination applies the same directory-append rule copyFile has
+// always used, then optionally renames the leaf filename for media servers,
+// then makes the existence decision (skip, reject, or proceed) against
+// whichever path will actually be written. skip reports a NoClobber match.
+func (e Engine) resolveDestination(source, destination string, options Options) (string, bool, error) {
+	existing, statErr := e.Remote.Lstat(destination)
+	if statErr == nil {
+		if existing.Mode()&fs.ModeSymlink != 0 {
+			return "", false, verrors.New(verrors.CodeUnsupportedFileType,
+				fmt.Sprintf("remote symbolic link %q is not followed", destination))
+		}
+		if existing.IsDir() {
+			destination = path.Join(destination, filepath.Base(source))
+			existing, statErr = e.Remote.Lstat(destination)
+		}
+	} else if !isNotExist(statErr) {
+		return "", false, verrors.Wrap(verrors.CodeDestinationNotWritable, "the destination could not be inspected", statErr)
+	}
+
+	if options.FixMediaNames {
+		if renamed := renameForMediaServers(destination); renamed != destination {
+			destination = renamed
+			existing, statErr = e.Remote.Lstat(destination)
+		}
+	}
+
+	if statErr == nil {
+		if existing.Mode()&fs.ModeSymlink != 0 {
+			return "", false, verrors.New(verrors.CodeUnsupportedFileType,
+				fmt.Sprintf("remote symbolic link %q is not followed", destination))
+		}
+		if options.NoClobber {
+			return destination, true, nil
+		}
+		if !options.Overwrite {
+			return "", false, verrors.New(verrors.CodeDestinationExists,
+				fmt.Sprintf("destination %q already exists", destination)).WithHint(
+				"Choose another destination, pass --overwrite explicitly, or pass --no-clobber to skip it and copy the rest.")
+		}
+	} else if !isNotExist(statErr) {
+		return "", false, verrors.Wrap(verrors.CodeDestinationNotWritable, "the destination could not be inspected", statErr)
+	}
+	return destination, false, nil
+}
+
+// renameForMediaServers removes a bare release year that collides with a
+// following SxxExx tag; see the medianame package. Non-video files and
+// filenames without the collision are returned unchanged.
+func renameForMediaServers(destination string) string {
+	dir, base := path.Split(destination)
+	renamed, ok := medianame.RewriteFilename(base)
+	if !ok {
+		return destination
+	}
+	return path.Join(dir, renamed)
+}
+
+// uploadThumbnail writes a generated placeholder JPEG next to a just-verified
+// episode file, using the video's own base name with a .jpg extension. That
+// exact-name-match is the local-image convention Jellyfin and Emby use for
+// an item's Primary (poster/grid) image, so it replaces a frame extracted
+// from the video instead of only affecting an unrelated image slot. It is a
+// no-op for files without a recognizable season/episode tag.
+func (e Engine) uploadThumbnail(destination string, options Options) error {
+	label, ok := medianame.EpisodeLabel(path.Base(destination))
+	if !ok {
+		return nil
+	}
+	image, err := thumbnail.Generate(label)
+	if err != nil {
+		return verrors.Wrap(verrors.CodeTransferFailed, "could not generate a placeholder thumbnail", err)
+	}
+	thumbnailPath := strings.TrimSuffix(destination, path.Ext(destination)) + ".jpg"
+	file, err := e.Remote.OpenFile(thumbnailPath, os.O_CREATE|os.O_TRUNC|os.O_WRONLY)
+	if err != nil {
+		return verrors.Wrap(verrors.CodeDestinationNotWritable, "could not create the placeholder thumbnail", err)
+	}
+	_, writeErr := file.Write(image)
+	closeErr := file.Close()
+	if writeErr != nil {
+		return verrors.Wrap(verrors.CodeTransferFailed, "could not write the placeholder thumbnail", writeErr)
+	}
+	if closeErr != nil {
+		return verrors.Wrap(verrors.CodeTransferFailed, "could not finalize the placeholder thumbnail", closeErr)
+	}
+	if err := e.Remote.Chmod(thumbnailPath, options.Policy.File); err != nil {
+		return verrors.Wrap(verrors.CodeInvalidPermission, "could not apply the file permission policy to the placeholder thumbnail", err)
+	}
+	return nil
 }
 
 // verifyRemoteFast reports whether path was confirmed to match localDigest

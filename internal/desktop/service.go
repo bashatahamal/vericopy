@@ -125,21 +125,23 @@ func (s *Service) GetDashboard() Dashboard {
 // Password is accepted only for a live password-authenticated transfer. It is
 // excluded from reviews, saved sessions, history, progress, and diagnostics.
 type TransferRequest struct {
-	Source         string `json:"source"`
-	Destination    string `json:"destination"`
-	Authentication string `json:"authentication,omitempty"`
-	Password       string `json:"password,omitempty"`
-	Identity       string `json:"identity,omitempty"`
-	KnownHosts     string `json:"known_hosts,omitempty"`
-	Port           int    `json:"port"`
-	Permissions    string `json:"permissions,omitempty"`
-	Group          string `json:"group,omitempty"`
-	ReadableBy     string `json:"readable_by,omitempty"`
-	Recursive      bool   `json:"recursive"`
-	Resume         bool   `json:"resume"`
-	Overwrite      bool   `json:"overwrite"`
-	NoClobber      bool   `json:"no_clobber"`
-	PreserveTime   bool   `json:"preserve_time"`
+	Source             string `json:"source"`
+	Destination        string `json:"destination"`
+	Authentication     string `json:"authentication,omitempty"`
+	Password           string `json:"password,omitempty"`
+	Identity           string `json:"identity,omitempty"`
+	KnownHosts         string `json:"known_hosts,omitempty"`
+	Port               int    `json:"port"`
+	Permissions        string `json:"permissions,omitempty"`
+	Group              string `json:"group,omitempty"`
+	ReadableBy         string `json:"readable_by,omitempty"`
+	Recursive          bool   `json:"recursive"`
+	Resume             bool   `json:"resume"`
+	Overwrite          bool   `json:"overwrite"`
+	NoClobber          bool   `json:"no_clobber"`
+	PreserveTime       bool   `json:"preserve_time"`
+	FixMediaNames      bool   `json:"fix_media_names"`
+	GenerateThumbnails bool   `json:"generate_thumbnails"`
 }
 
 // SourceSummary is the source information shown before any remote connection.
@@ -161,16 +163,18 @@ type DestinationSummary struct {
 // TransferReview is a locally validated transfer plan. Review never dials SSH
 // or writes a destination.
 type TransferReview struct {
-	Source         SourceSummary      `json:"source"`
-	Destination    DestinationSummary `json:"destination"`
-	Authentication string             `json:"authentication"`
-	Permissions    string             `json:"permissions"`
-	KnownHosts     string             `json:"known_hosts"`
-	Resume         bool               `json:"resume"`
-	Overwrite      bool               `json:"overwrite"`
-	NoClobber      bool               `json:"no_clobber"`
-	PreserveTime   bool               `json:"preserve_time"`
-	ReadableBy     string             `json:"readable_by,omitempty"`
+	Source             SourceSummary      `json:"source"`
+	Destination        DestinationSummary `json:"destination"`
+	Authentication     string             `json:"authentication"`
+	Permissions        string             `json:"permissions"`
+	KnownHosts         string             `json:"known_hosts"`
+	Resume             bool               `json:"resume"`
+	Overwrite          bool               `json:"overwrite"`
+	NoClobber          bool               `json:"no_clobber"`
+	PreserveTime       bool               `json:"preserve_time"`
+	FixMediaNames      bool               `json:"fix_media_names"`
+	GenerateThumbnails bool               `json:"generate_thumbnails"`
+	ReadableBy         string             `json:"readable_by,omitempty"`
 }
 
 // TransferResult combines the machine-readable engine result with the concise
@@ -372,6 +376,7 @@ func prepare(request TransferRequest) (preparedTransfer, error) {
 		Destination:    DestinationSummary{User: destination.User, Host: destination.Host, Path: destination.Path, Port: request.Port},
 		Authentication: request.Authentication, Permissions: request.Permissions, KnownHosts: request.KnownHosts, Resume: request.Resume,
 		Overwrite: request.Overwrite, NoClobber: request.NoClobber, PreserveTime: request.PreserveTime, ReadableBy: request.ReadableBy,
+		FixMediaNames: request.FixMediaNames, GenerateThumbnails: request.GenerateThumbnails,
 	}
 	info, inspectErr := localpath.Inspect(request.Source, "")
 	if inspectErr == nil {
@@ -449,6 +454,7 @@ func (s *Service) executePrepared(ctx context.Context, prepared preparedTransfer
 	result, err := engine.Copy(ctx, prepared.source, prepared.destination.Path, transfer.Options{
 		Recursive: prepared.request.Recursive, Resume: prepared.request.Resume,
 		Overwrite: prepared.request.Overwrite, NoClobber: prepared.request.NoClobber, PreserveTime: prepared.request.PreserveTime,
+		FixMediaNames: prepared.request.FixMediaNames, GenerateThumbnails: prepared.request.GenerateThumbnails,
 		Policy: prepared.policy, GID: gid, Progress: progress,
 	})
 	if err != nil {
