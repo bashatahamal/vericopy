@@ -40,6 +40,12 @@
   --gold-wash: #f3e9d6;
   --danger: #9a4333;
   --danger-wash: #f4e0da;
+  --info: #2f6fb0;
+  --info-wash: #e2ecf6;
+  --neutral: #5b6572;
+  --neutral-wash: #e7eaee;
+  --canceled: #6a5a8c;
+  --canceled-wash: #ece7f2;
   --serif: "Vericopy Serif", "Iowan Old Style", Georgia, serif;
   --sans: "Vericopy Sans", "Segoe UI", Arial, sans-serif;
   --mono: "Vericopy Mono", Consolas, monospace;
@@ -66,6 +72,12 @@
     --gold-wash: #3a2f1c;
     --danger: #df826f;
     --danger-wash: #3a231d;
+    --info: #6fa8dc;
+    --info-wash: #1c2c3a;
+    --neutral: #9aa3ad;
+    --neutral-wash: #2a2d31;
+    --canceled: #b09bd6;
+    --canceled-wash: #2c2438;
     --shadow: 0 1px 1px rgba(0, 0, 0, 0.18), 0 10px 28px rgba(0, 0, 0, 0.14);
     color-scheme: dark;
   }
@@ -88,6 +100,12 @@
   --gold-wash: #f3e9d6;
   --danger: #9a4333;
   --danger-wash: #f4e0da;
+  --info: #2f6fb0;
+  --info-wash: #e2ecf6;
+  --neutral: #5b6572;
+  --neutral-wash: #e7eaee;
+  --canceled: #6a5a8c;
+  --canceled-wash: #ece7f2;
   --shadow: 0 1px 1px rgba(28, 26, 23, 0.04), 0 8px 24px rgba(28, 26, 23, 0.035);
   color-scheme: light;
 }
@@ -109,6 +127,12 @@
   --gold-wash: #3a2f1c;
   --danger: #df826f;
   --danger-wash: #3a231d;
+  --info: #6fa8dc;
+  --info-wash: #1c2c3a;
+  --neutral: #9aa3ad;
+  --neutral-wash: #2a2d31;
+  --canceled: #b09bd6;
+  --canceled-wash: #2c2438;
   --shadow: 0 1px 1px rgba(0, 0, 0, 0.18), 0 10px 28px rgba(0, 0, 0, 0.14);
   color-scheme: dark;
 }
@@ -418,18 +442,25 @@ a { color: var(--accent-ink); text-decoration: none; }
   text-transform: uppercase;
   white-space: nowrap;
 }
-.status-pill.is-queued, .status-pill.is-paused, .status-pill.is-needs_password,
+.status-pill.is-running { background: var(--info-wash); color: var(--info); }
+.status-pill.is-queued { background: var(--neutral-wash); color: var(--neutral); }
+.status-pill.is-paused, .status-pill.is-needs_password,
 .status-pill.is-pausing, .status-pill.is-cancelling {
   background: var(--gold-wash);
   color: var(--gold);
 }
-.status-pill.is-failed, .status-pill.is-interrupted, .status-pill.is-canceled {
+.status-pill.is-failed, .status-pill.is-interrupted {
   background: var(--danger-wash);
   color: var(--danger);
 }
+.status-pill.is-canceled { background: var(--canceled-wash); color: var(--canceled); }
 
 .row .status { color: var(--accent-ink); font-family: var(--mono); font-size: 9.5px; letter-spacing: 0.06em; text-transform: uppercase; }
+.row .status.is-running { color: var(--info); }
+.row .status.is-queued { color: var(--neutral); }
+.row .status.is-paused, .row .status.is-needs_password, .row .status.is-pausing, .row .status.is-cancelling { color: var(--gold); }
 .row .status.is-failed, .row .status.is-interrupted { color: var(--danger); }
+.row .status.is-canceled { color: var(--canceled); }
 .row .name { overflow: hidden; font-size: 12.5px; font-weight: 580; text-overflow: ellipsis; white-space: nowrap; }
 .row .dest { overflow: hidden; color: var(--ink-faint); font-family: var(--mono); font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
 .row .meta { color: var(--ink-faint); font-family: var(--mono); font-size: 9.5px; white-space: nowrap; }
@@ -438,9 +469,12 @@ a { color: var(--accent-ink); text-decoration: none; }
 .job-row:last-child { border-bottom: 1px solid var(--line); }
 .job-heading { display: grid; grid-template-columns: 112px minmax(130px, auto) minmax(0, 1fr); align-items: baseline; gap: 14px; }
 .job-heading .status { font-family: var(--mono); font-size: 9.5px; letter-spacing: 0.06em; text-transform: uppercase; }
-.job-heading .status.is-running, .job-heading .status.is-verified { color: var(--accent-ink); }
-.job-heading .status.is-queued, .job-heading .status.is-paused, .job-heading .status.is-needs_password { color: var(--gold); }
-.job-heading .status.is-failed, .job-heading .status.is-interrupted, .job-heading .status.is-canceled { color: var(--danger); }
+.job-heading .status.is-verified { color: var(--accent-ink); }
+.job-heading .status.is-running { color: var(--info); }
+.job-heading .status.is-queued { color: var(--neutral); }
+.job-heading .status.is-paused, .job-heading .status.is-needs_password, .job-heading .status.is-pausing, .job-heading .status.is-cancelling { color: var(--gold); }
+.job-heading .status.is-failed, .job-heading .status.is-interrupted { color: var(--danger); }
+.job-heading .status.is-canceled { color: var(--canceled); }
 .job-heading strong { overflow: hidden; font-size: 13px; font-weight: 620; text-overflow: ellipsis; white-space: nowrap; }
 .job-destination { overflow: hidden; color: var(--ink-faint); font-family: var(--mono); font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
 .job-detail { display: flex; gap: 12px; margin: 8px 0 0 126px; color: var(--ink-faint); font-size: 11px; }
@@ -777,6 +811,33 @@ label.remember-password {
 .browse-path-input:focus { outline: none; border-color: var(--accent); }
 .browse-path-input:disabled { color: var(--ink-faint); }
 .browse-toolbar .notice { margin: 0 16px; }
+.browse-list-header {
+  display: grid;
+  grid-template-columns: 24px 20px minmax(0, 1fr) 90px 150px;
+  align-items: center;
+  gap: 10px;
+  border-bottom: 1px solid var(--line);
+  padding: 8px 16px;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--ink-faint);
+}
+.browse-sort-btn {
+  background: none;
+  border: none;
+  padding: 0;
+  margin: 0;
+  font: inherit;
+  color: inherit;
+  text-transform: inherit;
+  letter-spacing: inherit;
+  cursor: pointer;
+  text-align: left;
+}
+.browse-sort-btn:hover { color: var(--ink); }
+.browse-sort-btn.is-active { color: var(--accent-ink); font-weight: 700; }
+#browse-sort-size { text-align: right; }
 .browse-list { max-height: 420px; overflow-y: auto; }
 .browse-entry {
   display: grid;

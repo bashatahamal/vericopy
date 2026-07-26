@@ -43,22 +43,24 @@ type ConnectionProfile struct {
 // Authentication stores only the selected method; passwords, key passphrases,
 // and private-key contents are never accepted.
 type SessionProfile struct {
-	Name             string `json:"name"`
-	Destination      string `json:"destination"`
-	Port             int    `json:"port"`
-	Permissions      string `json:"permissions"`
-	Authentication   string `json:"authentication"`
-	Identity         string `json:"identity"`
-	KnownHosts       string `json:"known_hosts"`
-	Group            string `json:"group"`
-	ReadableBy       string `json:"readable_by"`
-	Recursive        bool   `json:"recursive"`
-	Resume           bool   `json:"resume"`
-	Overwrite        bool   `json:"overwrite"`
-	NoClobber        bool   `json:"no_clobber"`
-	PreserveTime     bool   `json:"preserve_time"`
-	Source           string `json:"source"`
-	RememberPassword bool   `json:"remember_password"`
+	Name               string `json:"name"`
+	Destination        string `json:"destination"`
+	Port               int    `json:"port"`
+	Permissions        string `json:"permissions"`
+	Authentication     string `json:"authentication"`
+	Identity           string `json:"identity"`
+	KnownHosts         string `json:"known_hosts"`
+	Group              string `json:"group"`
+	ReadableBy         string `json:"readable_by"`
+	Recursive          bool   `json:"recursive"`
+	Resume             bool   `json:"resume"`
+	Overwrite          bool   `json:"overwrite"`
+	NoClobber          bool   `json:"no_clobber"`
+	PreserveTime       bool   `json:"preserve_time"`
+	FixMediaNames      bool   `json:"fix_media_names"`
+	GenerateThumbnails bool   `json:"generate_thumbnails"`
+	Source             string `json:"source"`
+	RememberPassword   bool   `json:"remember_password"`
 	// Password is a transient carrier for SaveSession requests only, the
 	// same pattern TransferRequest.Password already uses: visible in JSON so
 	// the frontend can send it, but Service.SaveSession clears it in code
