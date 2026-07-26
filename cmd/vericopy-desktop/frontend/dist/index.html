@@ -36,7 +36,7 @@
               <div class="dashboard-copy">
                 <p class="kicker">Local, verified transfer</p>
                 <h1>Move files.<br />Know they arrived intact.</h1>
-                <p>Vericopy sends through SSH, reads the remote bytes back, and verifies the result before calling the transfer complete.</p>
+                <p>Vericopy sends through SSH, reads the remote bytes back, and verifies the result before calling the transfer complete. If a transfer is interrupted, it resumes from the exact byte where it stopped instead of starting over.</p>
                 <div class="hero-actions">
                   <button class="btn btn-primary btn-large" type="button" data-open-transfer>Set up a transfer</button>
                   <button class="btn btn-text" type="button" data-open-help>How verification works</button>
@@ -49,6 +49,7 @@
                   <div><dt>Transport</dt><dd>Native SFTP</dd></div>
                   <div><dt>Identity</dt><dd>Strict host key</dd></div>
                   <div><dt>Evidence</dt><dd>Size + SHA-256</dd></div>
+                  <div><dt>Resilience</dt><dd>Resumes, doesn't restart</dd></div>
                 </dl>
                 <p class="trust-foot">No hosted service. No telemetry.</p>
               </aside>
@@ -134,7 +135,6 @@
                     <div class="label-row">
                       <label for="source">Source <span class="req">required</span></label>
                       <span class="spacer"></span>
-                      <button class="link-btn" type="button" id="choose-file">Choose file</button>
                       <button class="link-btn" type="button" id="choose-files">Choose files</button>
                       <button class="link-btn" type="button" id="choose-folder">Choose folder</button>
                     </div>
@@ -517,11 +517,23 @@
 
               <article class="help-card help-card-wide">
                 <p class="micro-label">Verifying SHA-256</p>
-                <h2>Why verification takes about as long as the transfer.</h2>
-                <p>Vericopy proves the destination matches the source by independently reading the bytes that actually landed, not by trusting that the upload looked successful. When the server supports a standard hash command, Vericopy asks it to hash the file locally and only sends back the short digest, which is far faster than reading the whole file back. When it does not, Vericopy reads the destination back over SFTP and hashes it here instead, which moves roughly the same amount of data as the transfer itself did.</p>
+                <h2>Usually fast: the server hashes the file for you.</h2>
+                <p>Vericopy proves the destination matches the source by independently reading the bytes that actually landed, not by trusting that the upload looked successful. Most servers support a standard hash command, so Vericopy asks the server to hash the file itself and only sends back the short digest, without moving the data again. Only when a server has neither <code>sha256sum</code> nor <code>shasum</code> available does Vericopy fall back to reading the destination back over SFTP and hashing it here instead, which moves roughly the same amount of data as the transfer itself did.</p>
                 <ul>
-                  <li>If verification takes about as long as the upload, that is expected.</li>
-                  <li>Either path ends in the same independent size-and-SHA-256 comparison; the faster path only changes where the hashing happens.</li>
+                  <li>If verification finishes almost instantly, that is the normal case: the server hashed the file for you.</li>
+                  <li>If verification takes about as long as the upload, your server lacked a standard hash command and Vericopy fell back to reading the file back itself.</li>
+                  <li>Either path ends in the same independent size-and-SHA-256 comparison; only where the hashing happens changes.</li>
+                </ul>
+              </article>
+
+              <article class="help-card help-card-wide">
+                <p class="micro-label">Resumable transfers</p>
+                <h2>Picks up from the exact byte where it stopped, never from scratch.</h2>
+                <p>When a transfer is paused, interrupted, or the connection drops, Vericopy does not just assume a partial file is safe to continue. It fingerprints the start of your source file along with its size and modified time, and compares that against what it recorded when the partial upload began. Only when everything matches does it trust the partial file's current size as the resume point and continue writing from there.</p>
+                <ul>
+                  <li>If the source file changed, or a different file now sits at that path, Vericopy detects the mismatch and starts the transfer over instead of resuming into the wrong data.</li>
+                  <li>Turn on <strong>Resume partial</strong> before pressing Retry to continue from where it left off; leaving it off restarts the file from the beginning.</li>
+                  <li>This works whether Vericopy was minimized, fully quit and reopened, or the machine was restarted — the partial state lives on disk, not in memory.</li>
                 </ul>
               </article>
 

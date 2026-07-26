@@ -1668,7 +1668,6 @@ els.togglePassword.addEventListener("click", () => {
   els.togglePassword.textContent = reveal ? "Hide" : "Show";
   els.togglePassword.setAttribute("aria-pressed", String(reveal));
 });
-$("#choose-file").addEventListener("click", () => choose("SelectSourceFile", els.source));
 $("#choose-files").addEventListener("click", chooseMultiple);
 $("#choose-folder").addEventListener("click", () => choose("SelectSourceDirectory", els.source, true));
 $("#choose-identity").addEventListener("click", () => choose("SelectIdentityFile", els.identity));
