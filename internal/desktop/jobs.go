@@ -68,20 +68,22 @@ type TransferQueue struct {
 // persistedTransferRequest deliberately has no password field. It is the only
 // request shape allowed into desktop-state.json.
 type persistedTransferRequest struct {
-	Source         string `json:"source"`
-	Destination    string `json:"destination"`
-	Authentication string `json:"authentication"`
-	Identity       string `json:"identity,omitempty"`
-	KnownHosts     string `json:"known_hosts,omitempty"`
-	Port           int    `json:"port"`
-	Permissions    string `json:"permissions"`
-	Group          string `json:"group,omitempty"`
-	ReadableBy     string `json:"readable_by,omitempty"`
-	Recursive      bool   `json:"recursive"`
-	Resume         bool   `json:"resume"`
-	Overwrite      bool   `json:"overwrite"`
-	NoClobber      bool   `json:"no_clobber"`
-	PreserveTime   bool   `json:"preserve_time"`
+	Source             string `json:"source"`
+	Destination        string `json:"destination"`
+	Authentication     string `json:"authentication"`
+	Identity           string `json:"identity,omitempty"`
+	KnownHosts         string `json:"known_hosts,omitempty"`
+	Port               int    `json:"port"`
+	Permissions        string `json:"permissions"`
+	Group              string `json:"group,omitempty"`
+	ReadableBy         string `json:"readable_by,omitempty"`
+	Recursive          bool   `json:"recursive"`
+	Resume             bool   `json:"resume"`
+	Overwrite          bool   `json:"overwrite"`
+	NoClobber          bool   `json:"no_clobber"`
+	PreserveTime       bool   `json:"preserve_time"`
+	FixMediaNames      bool   `json:"fix_media_names"`
+	GenerateThumbnails bool   `json:"generate_thumbnails"`
 }
 
 type persistedTransferJob struct {
@@ -104,6 +106,7 @@ func persistedRequest(request TransferRequest) persistedTransferRequest {
 		Permissions: request.Permissions, Group: request.Group, ReadableBy: request.ReadableBy,
 		Recursive: request.Recursive, Resume: request.Resume, Overwrite: request.Overwrite,
 		NoClobber: request.NoClobber, PreserveTime: request.PreserveTime,
+		FixMediaNames: request.FixMediaNames, GenerateThumbnails: request.GenerateThumbnails,
 	}
 }
 
@@ -114,6 +117,7 @@ func (request persistedTransferRequest) liveRequest() TransferRequest {
 		Permissions: request.Permissions, Group: request.Group, ReadableBy: request.ReadableBy,
 		Recursive: request.Recursive, Resume: request.Resume, Overwrite: request.Overwrite,
 		NoClobber: request.NoClobber, PreserveTime: request.PreserveTime,
+		FixMediaNames: request.FixMediaNames, GenerateThumbnails: request.GenerateThumbnails,
 	}
 }
 

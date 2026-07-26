@@ -2,6 +2,7 @@ package desktop
 
 import (
 	"context"
+	"io/fs"
 	"os"
 	"path"
 	"path/filepath"
@@ -10,7 +11,9 @@ import (
 	"time"
 
 	nativesftp "github.com/bashatahamal/vericopy/internal/backend/sftp"
+	"github.com/bashatahamal/vericopy/internal/medianame"
 	"github.com/bashatahamal/vericopy/internal/sshclient"
+	"github.com/bashatahamal/vericopy/internal/thumbnail"
 	"github.com/bashatahamal/vericopy/internal/verrors"
 )
 
@@ -238,6 +241,134 @@ func (s *Service) DeleteRemotePaths(request RemoteBrowseRequest, paths []string)
 			continue
 		}
 		result.Deleted++
+	}
+	return result, nil
+}
+
+// BrowseRenameOutcome reports what happened to one path passed to
+// FixRemoteMediaNames. Renamed is false both when the name already had no
+// collision to fix and when the rename itself failed; Message distinguishes
+// the two.
+type BrowseRenameOutcome struct {
+	Path    string `json:"path"`
+	NewPath string `json:"new_path,omitempty"`
+	Renamed bool   `json:"renamed"`
+	Message string `json:"message,omitempty"`
+}
+
+// BrowseRenameResult reports the outcome for every path FixRemoteMediaNames
+// was asked to fix.
+type BrowseRenameResult struct {
+	Outcomes []BrowseRenameOutcome `json:"outcomes"`
+}
+
+// FixRemoteMediaNames applies the same year/SxxExx collision fix Copy can
+// apply during a transfer (see medianame.RewriteFilename) directly to files
+// already sitting on the remote server, so a file copied before the fix
+// existed does not need a fresh transfer just to be renamed.
+func (s *Service) FixRemoteMediaNames(request RemoteBrowseRequest, paths []string) (BrowseRenameResult, error) {
+	remoteFS, cleanup, err := s.dialForBrowsing(request)
+	if err != nil {
+		return BrowseRenameResult{}, err
+	}
+	defer cleanup()
+
+	result := BrowseRenameResult{}
+	for _, target := range paths {
+		cleaned := path.Clean(target)
+		dir, base := path.Split(cleaned)
+		outcome := BrowseRenameOutcome{Path: cleaned}
+		renamed, ok := medianame.RewriteFilename(base)
+		if !ok {
+			outcome.Message = "no colliding release year found; the name was left unchanged"
+			result.Outcomes = append(result.Outcomes, outcome)
+			continue
+		}
+		newPath := path.Join(dir, renamed)
+		if err := remoteFS.Rename(cleaned, newPath); err != nil {
+			outcome.Message = err.Error()
+			result.Outcomes = append(result.Outcomes, outcome)
+			continue
+		}
+		outcome.Renamed = true
+		outcome.NewPath = newPath
+		result.Outcomes = append(result.Outcomes, outcome)
+	}
+	return result, nil
+}
+
+// BrowseThumbnailOutcome reports what happened to one path passed to
+// GenerateRemoteThumbnails.
+type BrowseThumbnailOutcome struct {
+	Path      string `json:"path"`
+	ThumbPath string `json:"thumb_path,omitempty"`
+	Generated bool   `json:"generated"`
+	Message   string `json:"message,omitempty"`
+}
+
+// BrowseThumbnailResult reports the outcome for every path
+// GenerateRemoteThumbnails was asked to generate a thumbnail for.
+type BrowseThumbnailResult struct {
+	Outcomes []BrowseThumbnailOutcome `json:"outcomes"`
+}
+
+// GenerateRemoteThumbnails writes a placeholder "<name>.jpg" next to each
+// recognized episode file already on the remote server (see the thumbnail
+// package). That exact-name match is the local-image convention Jellyfin
+// and Emby use for an item's Primary (poster/grid) image, so it replaces a
+// frame extracted from inside the video rather than only affecting an
+// unrelated image slot. Files without a recognizable season/episode tag are
+// reported, not treated as an error.
+func (s *Service) GenerateRemoteThumbnails(request RemoteBrowseRequest, paths []string) (BrowseThumbnailResult, error) {
+	remoteFS, cleanup, err := s.dialForBrowsing(request)
+	if err != nil {
+		return BrowseThumbnailResult{}, err
+	}
+	defer cleanup()
+
+	result := BrowseThumbnailResult{}
+	for _, target := range paths {
+		cleaned := path.Clean(target)
+		outcome := BrowseThumbnailOutcome{Path: cleaned}
+		label, ok := medianame.EpisodeLabel(path.Base(cleaned))
+		if !ok {
+			outcome.Message = "not a recognized video episode file"
+			result.Outcomes = append(result.Outcomes, outcome)
+			continue
+		}
+		image, err := thumbnail.Generate(label)
+		if err != nil {
+			outcome.Message = err.Error()
+			result.Outcomes = append(result.Outcomes, outcome)
+			continue
+		}
+		mode := fs.FileMode(0o644)
+		if info, statErr := remoteFS.Stat(cleaned); statErr == nil {
+			mode = info.Mode().Perm()
+		}
+		thumbPath := strings.TrimSuffix(cleaned, path.Ext(cleaned)) + ".jpg"
+		file, err := remoteFS.OpenFile(thumbPath, os.O_CREATE|os.O_TRUNC|os.O_WRONLY)
+		if err != nil {
+			outcome.Message = err.Error()
+			result.Outcomes = append(result.Outcomes, outcome)
+			continue
+		}
+		_, writeErr := file.Write(image)
+		closeErr := file.Close()
+		if writeErr != nil {
+			outcome.Message = writeErr.Error()
+			result.Outcomes = append(result.Outcomes, outcome)
+			continue
+		}
+		if closeErr != nil {
+			outcome.Message = closeErr.Error()
+			result.Outcomes = append(result.Outcomes, outcome)
+			continue
+		}
+		_ = remoteFS.Chmod(thumbPath, mode)
+		outcome.Generated = true
+		outcome.ThumbPath = thumbPath
+		result.Outcomes = append(result.Outcomes, outcome)
 	}
 	return result, nil
 }

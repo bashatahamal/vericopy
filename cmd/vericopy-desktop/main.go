@@ -74,6 +74,14 @@ func (b *Bridge) DeleteRemotePaths(request desktop.RemoteBrowseRequest, paths []
 	return b.service.DeleteRemotePaths(request, paths)
 }
 
+func (b *Bridge) FixRemoteMediaNames(request desktop.RemoteBrowseRequest, paths []string) (desktop.BrowseRenameResult, error) {
+	return b.service.FixRemoteMediaNames(request, paths)
+}
+
+func (b *Bridge) GenerateRemoteThumbnails(request desktop.RemoteBrowseRequest, paths []string) (desktop.BrowseThumbnailResult, error) {
+	return b.service.GenerateRemoteThumbnails(request, paths)
+}
+
 func (b *Bridge) StartTransfer(request desktop.TransferRequest) (desktop.TransferResult, error) {
 	result, err := b.service.StartTransfer(request)
 	if err != nil {
