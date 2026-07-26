@@ -3,7 +3,7 @@ module github.com/bashatahamal/vericopy
 go 1.25.0
 
 require (
-	github.com/pkg/sftp v1.13.10
+	github.com/pkg/sftp v1.13.11
 	github.com/spf13/cobra v1.10.2
 	github.com/wailsapp/wails/v2 v2.13.0
 	github.com/zalando/go-keyring v0.2.6
