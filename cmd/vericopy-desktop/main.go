@@ -181,10 +181,6 @@ func (b *Bridge) beforeClose(ctx context.Context) bool {
 	return false
 }
 
-func (b *Bridge) SelectSourceFile() (string, error) {
-	return runtime.OpenFileDialog(b.ctx, runtime.OpenDialogOptions{Title: "Choose a source file"})
-}
-
 func (b *Bridge) SelectSourceFiles() ([]string, error) {
 	return runtime.OpenMultipleFilesDialog(b.ctx, runtime.OpenDialogOptions{Title: "Choose source files"})
 }
