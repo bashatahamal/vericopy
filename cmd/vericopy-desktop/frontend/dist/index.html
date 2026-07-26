@@ -236,11 +236,12 @@
                 </div>
                 <div class="step-body">
                   <div class="checks">
-                    <label data-tip="Copy the folder and everything inside it. Required when the source is a folder."><input id="recursive" name="recursive" type="checkbox" /><span class="tip-text">Recursive</span></label>
+                    <label data-tip="Copy the folder and everything inside it. Required when the source is a folder."><input id="recursive" name="recursive" type="checkbox" checked /><span class="tip-text">Recursive</span></label>
                     <label data-tip="Continue a compatible partial upload instead of restarting the whole file."><input id="resume" name="resume" type="checkbox" checked /><span class="tip-text">Resume partial</span></label>
                     <label data-tip="Allow replacing a file that already exists at the destination. Off protects existing files."><input id="overwrite" name="overwrite" type="checkbox" /><span class="tip-text">Overwrite existing</span></label>
-                    <label data-tip="Skip files and folders that already exist at the destination instead of failing, and copy only what is missing."><input id="no-clobber" name="no-clobber" type="checkbox" /><span class="tip-text">Skip existing</span></label>
-                    <label data-tip="Keep the source modification time on the remote copy."><input id="preserve-time" name="preserve-time" type="checkbox" /><span class="tip-text">Preserve mtime</span></label>
+                    <label data-tip="Skip files and folders that already exist at the destination instead of failing, and copy only what is missing."><input id="no-clobber" name="no-clobber" type="checkbox" checked /><span class="tip-text">Skip existing</span></label>
+                    <label data-tip="Keep the source modification time on the remote copy."><input id="preserve-time" name="preserve-time" type="checkbox" checked /><span class="tip-text">Preserve mtime</span></label>
+                    <label data-tip="Cleans up file names that could otherwise look identical in a media library, and adds a small thumbnail image next to each one so they're easier to tell apart at a glance."><input id="media-friendly" name="media-friendly" type="checkbox" checked /><span class="tip-text">Media-friendly naming</span></label>
                   </div>
 
                   <div class="advanced-wrap">
@@ -375,6 +376,15 @@
               <button class="btn btn-secondary" type="button" id="browse-remote-tab" role="tab" aria-selected="false">Remote destination</button>
             </div>
 
+            <div class="browse-remote-connect" id="browse-local-connect">
+              <div class="field">
+                <label for="browse-local-session">Jump to a saved session's source path</label>
+                <select id="browse-local-session">
+                  <option value="">Choose a saved session…</option>
+                </select>
+              </div>
+            </div>
+
             <div class="browse-remote-connect" id="browse-remote-connect" hidden>
               <div class="field">
                 <label for="browse-session">Use a saved session</label>
@@ -418,11 +428,20 @@
                 <button class="btn btn-quiet btn-sm" type="button" id="browse-refresh" disabled>Refresh</button>
               </div>
               <div class="notice" id="browse-notice" hidden role="status"></div>
+              <div class="browse-list-header" id="browse-list-header">
+                <input type="checkbox" id="browse-select-all" title="Select all" />
+                <span></span>
+                <button type="button" class="browse-sort-btn" id="browse-sort-name" data-sort="name">Name</button>
+                <button type="button" class="browse-sort-btn" id="browse-sort-size" data-sort="size">Size</button>
+                <button type="button" class="browse-sort-btn" id="browse-sort-date" data-sort="date">Modified</button>
+              </div>
               <div class="browse-list" id="browse-list" aria-live="polite"></div>
               <div class="empty-state empty-state-large" id="browse-empty" hidden><p>This folder is empty.</p></div>
               <div class="browse-actions" id="browse-actions" hidden>
                 <span id="browse-selection-count"></span>
                 <span class="spacer"></span>
+                <button class="btn btn-quiet btn-sm" type="button" id="browse-fix-names" hidden data-tip="Removes a bare release year colliding with a SxxExx tag in each selected file's name, in place on the server.">Fix media names</button>
+                <button class="btn btn-quiet btn-sm" type="button" id="browse-generate-thumbnails" hidden data-tip="Write a placeholder poster image (matching the video's own file name) with the title and episode next to each selected file, in place on the server.">Generate thumbnails</button>
                 <button class="btn btn-danger btn-sm" type="button" id="browse-delete-selected">Delete selected</button>
               </div>
             </div>

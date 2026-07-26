@@ -34,6 +34,7 @@ const els = {
   overwrite: $("#overwrite"),
   noClobber: $("#no-clobber"),
   preserveTime: $("#preserve-time"),
+  mediaFriendly: $("#media-friendly"),
   sessionChips: $("#session-chips"),
   sessionName: $("#session-name"),
   saveSession: $("#save-session"),
@@ -81,6 +82,8 @@ const els = {
   previewEmpty: $("#preview-empty"),
   browseLocalTab: $("#browse-local-tab"),
   browseRemoteTab: $("#browse-remote-tab"),
+  browseLocalConnect: $("#browse-local-connect"),
+  browseLocalSession: $("#browse-local-session"),
   browseRemoteConnect: $("#browse-remote-connect"),
   browseSession: $("#browse-session"),
   browseDestination: $("#browse-destination"),
@@ -94,10 +97,16 @@ const els = {
   browseGo: $("#browse-go"),
   browseRefresh: $("#browse-refresh"),
   browseNotice: $("#browse-notice"),
+  browseSelectAll: $("#browse-select-all"),
+  browseSortName: $("#browse-sort-name"),
+  browseSortSize: $("#browse-sort-size"),
+  browseSortDate: $("#browse-sort-date"),
   browseList: $("#browse-list"),
   browseEmpty: $("#browse-empty"),
   browseActions: $("#browse-actions"),
   browseSelectionCount: $("#browse-selection-count"),
+  browseFixNames: $("#browse-fix-names"),
+  browseGenerateThumbnails: $("#browse-generate-thumbnails"),
   browseDeleteSelected: $("#browse-delete-selected"),
   reviewSecurity: $("#review-security"),
   progressPanel: $("#progress-panel"),
@@ -214,6 +223,7 @@ function showView(view) {
   if (view === "dashboard") { loadDashboard(); renderSessions(); loadTransferJobs(); loadHistory(); }
   if (view === "transfer") els.source.focus();
   if (view === "activity") { loadTransferJobs(); loadHistory(); }
+  if (view === "browse" && browseMode === "local") populateBrowseLocalSessionOptions();
 }
 
 /* ---------- notices ---------- */
@@ -298,6 +308,8 @@ function requestFromForm() {
     overwrite: els.overwrite.checked,
     no_clobber: els.noClobber.checked,
     preserve_time: els.preserveTime.checked,
+    fix_media_names: els.mediaFriendly.checked,
+    generate_thumbnails: els.mediaFriendly.checked,
   };
 }
 
@@ -316,6 +328,7 @@ function requestToForm(request) {
   els.overwrite.checked = !!request.overwrite;
   els.noClobber.checked = !!request.no_clobber;
   els.preserveTime.checked = !!request.preserve_time;
+  els.mediaFriendly.checked = !!(request.fix_media_names || request.generate_thumbnails);
   setAdvancedOpen(!!(request.known_hosts || request.group || request.readable_by));
 }
 
@@ -491,6 +504,8 @@ async function migrateProfilesOnce() {
         overwrite: false,
         no_clobber: false,
         preserve_time: false,
+        fix_media_names: false,
+        generate_thumbnails: false,
       });
       sessions.push(savedSession);
       migrated = true;
@@ -531,6 +546,7 @@ function displayReview(review) {
     review.overwrite && "overwrite",
     review.no_clobber && "skip existing",
     review.preserve_time && "preserve mtime",
+    (review.fix_media_names || review.generate_thumbnails) && "media-friendly naming",
   ].filter(Boolean).join(" · ") || "none";
   addReviewRow("Options", options);
   if (review.readable_by) addReviewRow("Access check", `read as ${review.readable_by}`);
@@ -584,11 +600,12 @@ async function previewDestination() {
     els.password.focus();
     return;
   }
+  const password = request.authentication === "password" ? els.password.value : "";
   els.previewDestination.disabled = true;
   els.previewResult.hidden = true;
   setPreviewNotice("Connecting…");
   try {
-    const preview = await invoke("PreviewDestination", request);
+    const preview = await invoke("PreviewDestination", { ...request, password });
     setPreviewNotice("Connected. Authentication and the SFTP subsystem both work.", "success");
     els.previewPath.textContent = preview.will_create
       ? `${preview.path} — will be created; showing its parent`
@@ -1187,6 +1204,20 @@ let browseCurrentPath = "";
 let browseParentPath = "";
 let browseEntries = [];
 let browseSelected = new Set();
+// Sorting is client-side: the full listing is already in memory, so
+// re-sorting never needs another round trip. Folders always sort before
+// files regardless of key/direction, matching how every file manager groups
+// them; only the order within each group changes.
+let browseSort = { key: "name", dir: "asc" };
+// The "user@host:" prefix from the destination that was actually used to
+// connect, and the credentials that worked. Every later remote action (Up,
+// Go, opening a folder, Refresh, Delete) reuses these instead of re-reading
+// the live form fields, because navigation only ever has a bare path to
+// work with (Vericopy's own listings never carry the account back), and the
+// visible password field is not a reliable source of truth once a session
+// without a remembered password has been used once.
+let browseHostPrefix = "";
+let browseConnectionCache = null;
 
 function setBrowseNotice(message, kind = "") {
   els.browseNotice.hidden = !message;
@@ -1194,9 +1225,30 @@ function setBrowseNotice(message, kind = "") {
   els.browseNotice.textContent = message || "";
 }
 
-function browseConnectionRequest() {
+function extractHostPrefix(raw) {
+  const match = raw.trim().match(/^([^@\s]+@[^:\s]+):/);
+  return match ? match[1] + ":" : "";
+}
+
+function looksLikeFullReference(value) {
+  return /^[^@\s]+@[^:\s]+:/.test(value);
+}
+
+function browseConnectionRequest(targetPath) {
+  const cache = browseConnectionCache;
+  const destination = !targetPath
+    ? els.browseDestination.value.trim()
+    : looksLikeFullReference(targetPath) || !browseHostPrefix
+      ? targetPath
+      : browseHostPrefix + targetPath;
+  if (cache) {
+    return {
+      destination, port: cache.port, known_hosts: cache.knownHosts,
+      identity: cache.identity, password: cache.password, authentication: cache.authentication,
+    };
+  }
   return {
-    destination: els.browseDestination.value.trim(),
+    destination,
     port: Number(els.browsePort.value || 22),
     known_hosts: els.browseKnownHosts.value.trim(),
     identity: els.browseIdentity.value.trim(),
@@ -1224,6 +1276,45 @@ function populateBrowseSessionOptions() {
   }
 }
 
+function populateBrowseLocalSessionOptions() {
+  const previous = els.browseLocalSession.value;
+  els.browseLocalSession.replaceChildren();
+  const manual = document.createElement("option");
+  manual.value = "";
+  manual.textContent = "Choose a saved session…";
+  els.browseLocalSession.append(manual);
+  for (const session of sessions) {
+    if (!session.source) continue;
+    const option = document.createElement("option");
+    option.value = session.name;
+    option.textContent = `${session.name} — ${session.source}`;
+    els.browseLocalSession.append(option);
+  }
+  if ([...els.browseLocalSession.options].some((option) => option.value === previous)) {
+    els.browseLocalSession.value = previous;
+  }
+}
+
+function localParentOf(rawPath) {
+  const trimmed = rawPath.replace(/[\\/]+$/, "");
+  const separator = trimmed.lastIndexOf("\\") > trimmed.lastIndexOf("/") ? "\\" : "/";
+  const index = trimmed.lastIndexOf(separator);
+  return index > 0 ? trimmed.slice(0, index) : trimmed;
+}
+
+// A saved session's source is often a single file, not a folder, so jumping
+// to it means listing its parent directory instead. ListLocalDirectory
+// rejects a file path, so that failure is exactly the signal to retry one
+// level up rather than a real error to show the user.
+async function jumpToLocalSessionSource(rawPath) {
+  try {
+    await invoke("ListLocalDirectory", rawPath);
+    await loadBrowseDirectory(rawPath);
+  } catch {
+    await loadBrowseDirectory(localParentOf(rawPath));
+  }
+}
+
 async function applyBrowseSession(name) {
   const session = sessions.find((candidate) => candidate.name === name);
   if (!session) return;
@@ -1248,12 +1339,16 @@ function switchBrowseMode(mode) {
   browseParentPath = "";
   browseEntries = [];
   browseSelected = new Set();
+  browseHostPrefix = "";
+  browseConnectionCache = null;
   els.browseLocalTab.classList.toggle("is-active", mode === "local");
   els.browseLocalTab.setAttribute("aria-selected", String(mode === "local"));
   els.browseRemoteTab.classList.toggle("is-active", mode === "remote");
   els.browseRemoteTab.setAttribute("aria-selected", String(mode === "remote"));
   els.browseRemoteConnect.hidden = mode !== "remote";
+  els.browseLocalConnect.hidden = mode !== "local";
   if (mode === "remote") populateBrowseSessionOptions();
+  if (mode === "local") populateBrowseLocalSessionOptions();
   els.browsePathInput.value = "";
   els.browsePathInput.disabled = mode === "remote";
   els.browseGo.disabled = mode === "remote";
@@ -1269,10 +1364,11 @@ async function loadBrowseDirectory(targetPath) {
   try {
     const listing = browseMode === "local"
       ? await invoke("ListLocalDirectory", targetPath)
-      : await invoke("ListRemoteDirectory", { ...browseConnectionRequest(), destination: targetPath });
+      : await invoke("ListRemoteDirectory", browseConnectionRequest(targetPath));
     browseCurrentPath = listing.path;
     browseParentPath = listing.parent || "";
     browseEntries = listing.entries || [];
+    sortBrowseEntries();
     browseSelected = new Set();
     els.browsePathInput.value = browseCurrentPath;
     els.browsePathInput.disabled = false;
@@ -1284,6 +1380,41 @@ async function loadBrowseDirectory(targetPath) {
   } catch (error) {
     setBrowseNotice(error?.message || String(error), "error");
   }
+}
+
+function sortBrowseEntries() {
+  const { key, dir } = browseSort;
+  const factor = dir === "asc" ? 1 : -1;
+  browseEntries = [...browseEntries].sort((a, b) => {
+    if (a.is_dir !== b.is_dir) return a.is_dir ? -1 : 1;
+    let result = 0;
+    if (key === "size") result = (a.size || 0) - (b.size || 0);
+    else if (key === "date") result = new Date(a.mod_time || 0) - new Date(b.mod_time || 0);
+    else result = a.name.localeCompare(b.name, undefined, { sensitivity: "base" });
+    return result * factor;
+  });
+}
+
+function setBrowseSort(key) {
+  browseSort = browseSort.key === key ? { key, dir: browseSort.dir === "asc" ? "desc" : "asc" } : { key, dir: "asc" };
+  sortBrowseEntries();
+  renderBrowseList();
+}
+
+function renderSortIndicators() {
+  for (const button of [els.browseSortName, els.browseSortSize, els.browseSortDate]) {
+    const active = button.dataset.sort === browseSort.key;
+    button.classList.toggle("is-active", active);
+    const label = button.dataset.sort === "date" ? "Modified" : button.dataset.sort === "size" ? "Size" : "Name";
+    button.textContent = active ? `${label} ${browseSort.dir === "asc" ? "▲" : "▼"}` : label;
+  }
+}
+
+function updateSelectAllCheckbox() {
+  const total = browseEntries.length;
+  const selectedCount = browseEntries.filter((entry) => browseSelected.has(browseEntryPath(entry.name))).length;
+  els.browseSelectAll.checked = total > 0 && selectedCount === total;
+  els.browseSelectAll.indeterminate = selectedCount > 0 && selectedCount < total;
 }
 
 function browseEntryPath(name) {
@@ -1305,6 +1436,7 @@ function browseEntryRow(entry) {
   checkbox.addEventListener("change", () => {
     if (checkbox.checked) browseSelected.add(fullPath);
     else browseSelected.delete(fullPath);
+    updateSelectAllCheckbox();
     updateBrowseActions();
   });
 
@@ -1332,6 +1464,8 @@ function browseEntryRow(entry) {
 function renderBrowseList() {
   els.browseList.replaceChildren(...browseEntries.map(browseEntryRow));
   els.browseEmpty.hidden = browseEntries.length !== 0 || !browseCurrentPath;
+  renderSortIndicators();
+  updateSelectAllCheckbox();
   updateBrowseActions();
 }
 
@@ -1339,6 +1473,58 @@ function updateBrowseActions() {
   const count = browseSelected.size;
   els.browseActions.hidden = count === 0;
   els.browseSelectionCount.textContent = count === 1 ? "1 item selected" : `${count} items selected`;
+  const remoteOnly = browseMode === "remote";
+  els.browseFixNames.hidden = !remoteOnly;
+  els.browseGenerateThumbnails.hidden = !remoteOnly;
+}
+
+async function fixSelectedMediaNames() {
+  const paths = [...browseSelected];
+  if (paths.length === 0) return;
+  const confirmed = await confirmAction({
+    title: `Fix media names for ${paths.length} item(s)?`,
+    message: `This renames each selected file in place on the server, removing a bare release year that collides with a SxxExx episode tag (e.g. Show.2026.S01E01.mkv becomes Show.S01E01.mkv). Files without that pattern are left alone.`,
+  });
+  if (!confirmed) return;
+  els.browseFixNames.disabled = true;
+  try {
+    const result = await invoke("FixRemoteMediaNames", browseConnectionRequest(browseCurrentPath), paths);
+    const outcomes = result.outcomes || [];
+    const renamed = outcomes.filter((o) => o.renamed).length;
+    const failed = outcomes.filter((o) => !o.renamed && o.message && o.message !== "no colliding release year found; the name was left unchanged");
+    if (failed.length === 0) {
+      setBrowseNotice(`Renamed ${renamed} of ${outcomes.length} item(s); the rest already had unambiguous names.`, "success");
+    } else {
+      setBrowseNotice(`Renamed ${renamed} item(s); ${failed.length} failed — ${failed.map((f) => f.message).join("; ")}`, "error");
+    }
+    await loadBrowseDirectory(browseCurrentPath);
+  } catch (error) {
+    setBrowseNotice(error?.message || String(error), "error");
+  } finally {
+    els.browseFixNames.disabled = false;
+  }
+}
+
+async function generateSelectedThumbnails() {
+  const paths = [...browseSelected];
+  if (paths.length === 0) return;
+  els.browseGenerateThumbnails.disabled = true;
+  try {
+    const result = await invoke("GenerateRemoteThumbnails", browseConnectionRequest(browseCurrentPath), paths);
+    const outcomes = result.outcomes || [];
+    const generated = outcomes.filter((o) => o.generated).length;
+    const failed = outcomes.filter((o) => !o.generated && o.message && o.message !== "not a recognized video episode file");
+    if (failed.length === 0) {
+      setBrowseNotice(`Generated ${generated} thumbnail(s) of ${outcomes.length} selected item(s).`, "success");
+    } else {
+      setBrowseNotice(`Generated ${generated} thumbnail(s); ${failed.length} failed — ${failed.map((f) => f.message).join("; ")}`, "error");
+    }
+    await loadBrowseDirectory(browseCurrentPath);
+  } catch (error) {
+    setBrowseNotice(error?.message || String(error), "error");
+  } finally {
+    els.browseGenerateThumbnails.disabled = false;
+  }
 }
 
 async function deleteBrowseSelected() {
@@ -1354,7 +1540,7 @@ async function deleteBrowseSelected() {
   try {
     const result = browseMode === "local"
       ? await invoke("DeleteLocalPaths", paths)
-      : await invoke("DeleteRemotePaths", browseConnectionRequest(), paths);
+      : await invoke("DeleteRemotePaths", browseConnectionRequest(browseCurrentPath), paths);
     const failures = result.failures || [];
     if (failures.length === 0) {
       setBrowseNotice(`Deleted ${result.deleted} item(s).`, "success");
@@ -1371,10 +1557,28 @@ async function deleteBrowseSelected() {
 
 els.browseLocalTab.addEventListener("click", () => switchBrowseMode("local"));
 els.browseRemoteTab.addEventListener("click", () => switchBrowseMode("remote"));
+els.browseLocalSession.addEventListener("change", () => {
+  const session = sessions.find((candidate) => candidate.name === els.browseLocalSession.value);
+  els.browseLocalSession.value = "";
+  if (session?.source) jumpToLocalSessionSource(session.source);
+});
 els.browseSession.addEventListener("change", () => applyBrowseSession(els.browseSession.value));
 els.browseConnect.addEventListener("click", () => {
   const destination = els.browseDestination.value.trim();
   if (!destination) { setBrowseNotice("Enter a destination first.", "error"); els.browseDestination.focus(); return; }
+  if (!looksLikeFullReference(destination)) {
+    setBrowseNotice("Enter a full user@host:/path destination to connect.", "error");
+    els.browseDestination.focus();
+    return;
+  }
+  browseHostPrefix = extractHostPrefix(destination);
+  browseConnectionCache = {
+    port: Number(els.browsePort.value || 22),
+    knownHosts: els.browseKnownHosts.value.trim(),
+    identity: els.browseIdentity.value.trim(),
+    password: els.browsePassword.value,
+    authentication: els.browsePassword.value ? "password" : "key",
+  };
   loadBrowseDirectory(destination);
 });
 els.browseGo.addEventListener("click", () => loadBrowseDirectory(els.browsePathInput.value.trim()));
@@ -1383,6 +1587,16 @@ els.browsePathInput.addEventListener("keydown", (event) => {
 });
 els.browseUp.addEventListener("click", () => { if (browseParentPath) loadBrowseDirectory(browseParentPath); });
 els.browseRefresh.addEventListener("click", () => loadBrowseDirectory(browseCurrentPath));
+els.browseSelectAll.addEventListener("change", () => {
+  if (els.browseSelectAll.checked) browseEntries.forEach((entry) => browseSelected.add(browseEntryPath(entry.name)));
+  else browseEntries.forEach((entry) => browseSelected.delete(browseEntryPath(entry.name)));
+  renderBrowseList();
+});
+[els.browseSortName, els.browseSortSize, els.browseSortDate].forEach((button) => {
+  button.addEventListener("click", () => setBrowseSort(button.dataset.sort));
+});
+els.browseFixNames.addEventListener("click", fixSelectedMediaNames);
+els.browseGenerateThumbnails.addEventListener("click", generateSelectedThumbnails);
 els.browseDeleteSelected.addEventListener("click", deleteBrowseSelected);
 
 /* ---------- dashboard + statusbar ---------- */
@@ -1459,7 +1673,8 @@ $("#choose-files").addEventListener("click", chooseMultiple);
 $("#choose-folder").addEventListener("click", () => choose("SelectSourceDirectory", els.source, true));
 $("#choose-identity").addEventListener("click", () => choose("SelectIdentityFile", els.identity));
 [els.source, els.destination, els.port, els.permissions, els.password, els.identity, els.knownHosts, els.group, els.readableBy,
- els.recursive, els.resume, els.overwrite, els.noClobber, els.preserveTime].forEach((field) => {
+ els.recursive, els.resume, els.overwrite, els.noClobber, els.preserveTime,
+ els.mediaFriendly].forEach((field) => {
   field.addEventListener("input", () => { if (field !== els.password) retryingJobID = ""; invalidateReview(); });
   field.addEventListener("change", () => { if (field !== els.password) retryingJobID = ""; invalidateReview(); });
 });

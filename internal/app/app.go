@@ -178,19 +178,21 @@ func newDoctorCommand(globals *Globals) *cobra.Command {
 
 type copyFlags struct {
 	connectionFlags
-	Recursive     bool
-	Resume        bool
-	Overwrite     bool
-	NoClobber     bool
-	PreserveTime  bool
-	Permission    string
-	FileMode      string
-	DirectoryMode string
-	Group         string
-	ReadableBy    string
-	Backend       string
-	Verify        string
-	DryRun        bool
+	Recursive          bool
+	Resume             bool
+	Overwrite          bool
+	NoClobber          bool
+	PreserveTime       bool
+	FixMediaNames      bool
+	GenerateThumbnails bool
+	Permission         string
+	FileMode           string
+	DirectoryMode      string
+	Group              string
+	ReadableBy         string
+	Backend            string
+	Verify             string
+	DryRun             bool
 }
 
 func newCopyCommand(globals *Globals) *cobra.Command {
@@ -209,6 +211,8 @@ func newCopyCommand(globals *Globals) *cobra.Command {
 	command.Flags().BoolVar(&flags.Overwrite, "overwrite", false, "replace an existing destination")
 	command.Flags().BoolVar(&flags.NoClobber, "no-clobber", false, "skip files and directories that already exist at the destination instead of failing")
 	command.Flags().BoolVar(&flags.PreserveTime, "preserve-time", false, "preserve source modification times where supported")
+	command.Flags().BoolVar(&flags.FixMediaNames, "fix-media-names", false, "remove a bare release year that collides with a SxxExx episode tag, so media servers don't merge distinct episodes")
+	command.Flags().BoolVar(&flags.GenerateThumbnails, "generate-thumbnails", false, "write a placeholder poster image (matching the video's own base name) with the episode's title next to each recognized episode file")
 	command.Flags().StringVar(&flags.Permission, "permissions", "private", "destination permission policy")
 	command.Flags().StringVar(&flags.FileMode, "file-mode", "", "octal file-mode override")
 	command.Flags().StringVar(&flags.DirectoryMode, "directory-mode", "", "octal directory-mode override")
@@ -275,6 +279,7 @@ func runCopy(ctx context.Context, globals *Globals, flags *copyFlags, sourceArg,
 	result, err := engine.Copy(ctx, source, destination.Path, transfer.Options{
 		Recursive: flags.Recursive, Resume: flags.Resume, Overwrite: flags.Overwrite,
 		NoClobber: flags.NoClobber, PreserveTime: flags.PreserveTime, DryRun: flags.DryRun,
+		FixMediaNames: flags.FixMediaNames, GenerateThumbnails: flags.GenerateThumbnails,
 		Policy: policy, GID: gid,
 	})
 	if err != nil {
