@@ -44,6 +44,21 @@ func (r localRemote) Rename(oldName, newName string) error {
 	return os.Rename(r.local(oldName), r.local(newName))
 }
 func (r localRemote) Remove(name string) error { return os.Remove(r.local(name)) }
+func (r localRemote) ReadDir(name string) ([]fs.FileInfo, error) {
+	entries, err := os.ReadDir(r.local(name))
+	if err != nil {
+		return nil, err
+	}
+	infos := make([]fs.FileInfo, 0, len(entries))
+	for _, entry := range entries {
+		info, err := entry.Info()
+		if err != nil {
+			return nil, err
+		}
+		infos = append(infos, info)
+	}
+	return infos, nil
+}
 
 type countingOpenRemote struct {
 	localRemote
