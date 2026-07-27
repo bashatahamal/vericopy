@@ -131,8 +131,8 @@ const transferDirectionDownload = "download"
 // Password is accepted only for a live password-authenticated transfer. It is
 // excluded from reviews, saved sessions, history, progress, and diagnostics.
 type TransferRequest struct {
-	Source             string `json:"source"`
-	Destination        string `json:"destination"`
+	Source      string `json:"source"`
+	Destination string `json:"destination"`
 	// Direction is "upload" (the default, for backward compatibility) or
 	// "download". Upload requires Source to be a local path and Destination
 	// to be a remote user@host:/path; download requires the reverse.

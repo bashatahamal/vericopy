@@ -36,14 +36,14 @@ type transferExecutor func(context.Context, preparedTransfer, string, func(trans
 // TransferJob is the non-secret job summary exposed to the desktop frontend.
 // Complete paths, identity paths, known_hosts paths, and passwords are omitted.
 type TransferJob struct {
-	ID               string       `json:"id"`
-	CreatedAt        time.Time    `json:"created_at"`
-	StartedAt        time.Time    `json:"started_at,omitempty"`
-	CompletedAt      time.Time    `json:"completed_at,omitempty"`
-	Status           string       `json:"status"`
-	Phase            string       `json:"phase,omitempty"`
-	SourceName       string       `json:"source_name"`
-	Destination      string       `json:"destination"`
+	ID          string    `json:"id"`
+	CreatedAt   time.Time `json:"created_at"`
+	StartedAt   time.Time `json:"started_at,omitempty"`
+	CompletedAt time.Time `json:"completed_at,omitempty"`
+	Status      string    `json:"status"`
+	Phase       string    `json:"phase,omitempty"`
+	SourceName  string    `json:"source_name"`
+	Destination string    `json:"destination"`
 	// LocalPath is the on-disk path this transfer ultimately produced or
 	// read: the resolved local file for a verified download, or the
 	// original local source for a verified upload. It is set only once a
