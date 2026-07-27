@@ -11,6 +11,8 @@ import (
 	"embed"
 	"fmt"
 	"os"
+	"os/exec"
+	goruntime "runtime"
 
 	"github.com/wailsapp/wails/v2"
 	"github.com/wailsapp/wails/v2/pkg/options"
@@ -191,6 +193,23 @@ func (b *Bridge) SelectSourceFiles() ([]string, error) {
 
 func (b *Bridge) SelectSourceDirectory() (string, error) {
 	return runtime.OpenDirectoryDialog(b.ctx, runtime.OpenDialogOptions{Title: "Choose a source folder"})
+}
+
+func (b *Bridge) SelectDownloadDestination() (string, error) {
+	return runtime.OpenDirectoryDialog(b.ctx, runtime.OpenDialogOptions{Title: "Choose a folder on this computer to download into"})
+}
+
+// RevealInFileManager opens the OS file manager (Explorer, Finder, or the
+// desktop's configured handler) with path selected where that is supported.
+// It launches the OS command without waiting for it to exit: file managers
+// commonly detach immediately, and Explorer in particular is known to report
+// a non-zero exit status even after successfully opening.
+func (b *Bridge) RevealInFileManager(path string) error {
+	if path == "" {
+		return fmt.Errorf("no local path to show")
+	}
+	name, args := desktop.RevealCommand(goruntime.GOOS, path)
+	return exec.Command(name, args...).Start()
 }
 
 func (b *Bridge) SelectIdentityFile() (string, error) {

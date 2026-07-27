@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"path"
 	"path/filepath"
 	"sort"
 	"time"
@@ -43,6 +44,12 @@ type TransferJob struct {
 	Phase            string       `json:"phase,omitempty"`
 	SourceName       string       `json:"source_name"`
 	Destination      string       `json:"destination"`
+	// LocalPath is the on-disk path this transfer ultimately produced or
+	// read: the resolved local file for a verified download, or the
+	// original local source for a verified upload. It is set only once a
+	// job finishes successfully, so the desktop UI can offer to reveal it
+	// in the OS file manager.
+	LocalPath        string       `json:"local_path,omitempty"`
 	Authentication   string       `json:"authentication"`
 	TransferredBytes int64        `json:"transferred_bytes,omitempty"`
 	TotalBytes       int64        `json:"total_bytes,omitempty"`
@@ -70,6 +77,7 @@ type TransferQueue struct {
 type persistedTransferRequest struct {
 	Source             string `json:"source"`
 	Destination        string `json:"destination"`
+	Direction          string `json:"direction,omitempty"`
 	Authentication     string `json:"authentication"`
 	Identity           string `json:"identity,omitempty"`
 	KnownHosts         string `json:"known_hosts,omitempty"`
@@ -101,7 +109,7 @@ type runtimeJob struct {
 
 func persistedRequest(request TransferRequest) persistedTransferRequest {
 	return persistedTransferRequest{
-		Source: request.Source, Destination: request.Destination, Authentication: request.Authentication,
+		Source: request.Source, Destination: request.Destination, Direction: request.Direction, Authentication: request.Authentication,
 		Identity: request.Identity, KnownHosts: request.KnownHosts, Port: request.Port,
 		Permissions: request.Permissions, Group: request.Group, ReadableBy: request.ReadableBy,
 		Recursive: request.Recursive, Resume: request.Resume, Overwrite: request.Overwrite,
@@ -112,7 +120,7 @@ func persistedRequest(request TransferRequest) persistedTransferRequest {
 
 func (request persistedTransferRequest) liveRequest() TransferRequest {
 	return TransferRequest{
-		Source: request.Source, Destination: request.Destination, Authentication: request.Authentication,
+		Source: request.Source, Destination: request.Destination, Direction: request.Direction, Authentication: request.Authentication,
 		Identity: request.Identity, KnownHosts: request.KnownHosts, Port: request.Port,
 		Permissions: request.Permissions, Group: request.Group, ReadableBy: request.ReadableBy,
 		Recursive: request.Recursive, Resume: request.Resume, Overwrite: request.Overwrite,
@@ -134,21 +142,29 @@ func (s *Service) EnqueueTransfer(request TransferRequest) (TransferJob, error) 
 		return TransferJob{}, verrors.New(verrors.CodeAuthenticationFailed,
 			"enter the SSH password before adding this transfer")
 	}
-	prepared.request.Source = prepared.source
-	prepared.request.Destination = canonicalDestination(prepared.destination)
+	if prepared.request.Direction == transferDirectionDownload {
+		prepared.request.Source = canonicalDestination(prepared.remote)
+		prepared.request.Destination = prepared.local
+	} else {
+		prepared.request.Source = prepared.local
+		prepared.request.Destination = canonicalDestination(prepared.remote)
+	}
 
 	id, err := randomID()
 	if err != nil {
 		return TransferJob{}, err
 	}
-	sourceName := filepath.Base(prepared.source)
+	sourceName := filepath.Base(prepared.local)
+	if prepared.request.Direction == transferDirectionDownload {
+		sourceName = path.Base(prepared.remote.Path)
+	}
 	if sourceName == "." || sourceName == string(filepath.Separator) || sourceName == "" {
 		sourceName = "source"
 	}
 	record := persistedTransferJob{
 		Job: TransferJob{
 			ID: id, CreatedAt: time.Now().UTC(), Status: JobQueued, Phase: JobQueued,
-			SourceName: sourceName, Destination: redactedDestination(prepared.destination),
+			SourceName: sourceName, Destination: redactedDestination(prepared.remote),
 			Authentication: prepared.request.Authentication, Message: "Waiting for an available transfer slot",
 		},
 		Request: persistedRequest(prepared.request),
@@ -528,6 +544,11 @@ func (s *Service) finishJob(id string, prepared preparedTransfer, result transfe
 		job.record.Job.Status = JobVerified
 		job.record.Job.Phase = "completed"
 		job.record.Job.Message = "Transfer verified"
+		if prepared.request.Direction == transferDirectionDownload {
+			job.record.Job.LocalPath = result.Destination
+		} else {
+			job.record.Job.LocalPath = prepared.local
+		}
 	} else {
 		diagnostic := verrors.As(transferErr)
 		job.record.Job.DiagnosticCode = diagnostic.Code

@@ -121,12 +121,22 @@ func (s *Service) GetDashboard() Dashboard {
 	}
 }
 
+// transferDirectionDownload marks a TransferRequest whose Source is remote
+// and Destination is local. Any other value (including the empty default)
+// is treated as an upload, for backward compatibility with saved sessions
+// and history predating downloads.
+const transferDirectionDownload = "download"
+
 // TransferRequest is the desktop equivalent of an explicit copy command.
 // Password is accepted only for a live password-authenticated transfer. It is
 // excluded from reviews, saved sessions, history, progress, and diagnostics.
 type TransferRequest struct {
 	Source             string `json:"source"`
 	Destination        string `json:"destination"`
+	// Direction is "upload" (the default, for backward compatibility) or
+	// "download". Upload requires Source to be a local path and Destination
+	// to be a remote user@host:/path; download requires the reverse.
+	Direction          string `json:"direction,omitempty"`
 	Authentication     string `json:"authentication,omitempty"`
 	Password           string `json:"password,omitempty"`
 	Identity           string `json:"identity,omitempty"`
@@ -223,7 +233,7 @@ func (s *Service) PreviewDestination(request TransferRequest) (DestinationPrevie
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
 	sshConnection, err := sshclient.Dial(ctx, sshclient.Options{
-		User: prepared.destination.User, Host: prepared.destination.Host, Port: prepared.request.Port,
+		User: prepared.remote.User, Host: prepared.remote.Host, Port: prepared.request.Port,
 		KnownHosts: prepared.request.KnownHosts, Identity: prepared.request.Identity,
 		Authentication: prepared.request.Authentication, Password: password, Timeout: 15 * time.Second,
 	})
@@ -238,7 +248,7 @@ func (s *Service) PreviewDestination(request TransferRequest) (DestinationPrevie
 	}
 	defer remoteFS.Close()
 
-	destinationPath := prepared.destination.Path
+	destinationPath := prepared.remote.Path
 	preview := DestinationPreview{}
 	listPath := destinationPath
 	if info, statErr := remoteFS.Lstat(destinationPath); statErr == nil {
@@ -284,12 +294,16 @@ type TransferProgress struct {
 	Message          string `json:"message,omitempty"`
 }
 
+// preparedTransfer is direction-agnostic: local is the local-side path
+// (the source for an upload, the destination for a download) and remote is
+// the parsed remote endpoint (the destination for an upload, the source for
+// a download).
 type preparedTransfer struct {
-	request     TransferRequest
-	source      string
-	destination remote.Destination
-	policy      permissions.Policy
-	review      TransferReview
+	request TransferRequest
+	local   string
+	remote  remote.Destination
+	policy  permissions.Policy
+	review  TransferReview
 }
 
 // ReviewTransfer validates a request and returns the exact operation the user
@@ -331,7 +345,18 @@ func prepare(request TransferRequest) (preparedTransfer, error) {
 		return preparedTransfer{}, verrors.New(verrors.CodeInvalidArguments,
 			fmt.Sprintf("unsupported SSH authentication method %q", request.Authentication))
 	}
+	policy, err := permissions.Resolve(request.Permissions, "", "")
+	if err != nil {
+		return preparedTransfer{}, err
+	}
 
+	if request.Direction == transferDirectionDownload {
+		return prepareDownload(request, policy)
+	}
+	return prepareUpload(request, policy)
+}
+
+func prepareUpload(request TransferRequest, policy permissions.Policy) (preparedTransfer, error) {
 	source, err := localpath.ResolveForRuntime(request.Source)
 	if err != nil {
 		return preparedTransfer{}, err
@@ -364,10 +389,6 @@ func prepare(request TransferRequest) (preparedTransfer, error) {
 			"the desktop app requires an absolute remote path").WithHint(
 			"Use user@host:/absolute/remote/path so the destination is unambiguous.")
 	}
-	policy, err := permissions.Resolve(request.Permissions, "", "")
-	if err != nil {
-		return preparedTransfer{}, err
-	}
 
 	review := TransferReview{
 		Source: SourceSummary{
@@ -382,7 +403,54 @@ func prepare(request TransferRequest) (preparedTransfer, error) {
 	if inspectErr == nil {
 		review.Source.Kind = string(info.Kind)
 	}
-	return preparedTransfer{request: request, source: source, destination: destination, policy: policy, review: review}, nil
+	return preparedTransfer{request: request, local: source, remote: destination, policy: policy, review: review}, nil
+}
+
+// prepareDownload mirrors prepareUpload with Source and Destination
+// reversed. Unlike an upload's remote destination, the remote source cannot
+// be inspected here: doing so would require dialing SSH during local
+// validation, which prepare intentionally never does. Callers that already
+// know the source is a directory (Browse lists remote entries before
+// offering to download them) pass that through Recursive explicitly.
+func prepareDownload(request TransferRequest, policy permissions.Policy) (preparedTransfer, error) {
+	source, err := remote.Parse(request.Source)
+	if err != nil {
+		return preparedTransfer{}, err
+	}
+	if source.User == "" {
+		return preparedTransfer{}, verrors.New(verrors.CodeInvalidArguments,
+			"the desktop app requires an explicit SSH user in the source").WithHint(
+			"Use user@host:/absolute/remote/path so the account is clear before transfer.")
+	}
+	if !strings.HasPrefix(source.Path, "/") {
+		return preparedTransfer{}, verrors.New(verrors.CodeInvalidArguments,
+			"the desktop app requires an absolute remote path").WithHint(
+			"Use user@host:/absolute/remote/path so the source is unambiguous.")
+	}
+
+	destination, err := localpath.ResolveForRuntime(request.Destination)
+	if err != nil {
+		return preparedTransfer{}, err
+	}
+	if destinationInfo, statErr := os.Lstat(destination); statErr == nil {
+		if destinationInfo.Mode()&os.ModeSymlink != 0 {
+			return preparedTransfer{}, verrors.New(verrors.CodeUnsupportedFileType, "symbolic links are not followed by default")
+		}
+		if !destinationInfo.IsDir() && !destinationInfo.Mode().IsRegular() {
+			return preparedTransfer{}, verrors.New(verrors.CodeUnsupportedFileType, "only regular files and directories are supported")
+		}
+	} else if !os.IsNotExist(statErr) {
+		return preparedTransfer{}, verrors.Wrap(verrors.CodeInvalidLocalPath, "the local destination cannot be inspected", statErr)
+	}
+
+	review := TransferReview{
+		Source:         SourceSummary{Path: source.Path, Kind: "remote", IsDirectory: request.Recursive},
+		Destination:    DestinationSummary{Path: destination, Port: request.Port},
+		Authentication: request.Authentication, Permissions: request.Permissions, KnownHosts: request.KnownHosts, Resume: request.Resume,
+		Overwrite: request.Overwrite, NoClobber: request.NoClobber, PreserveTime: request.PreserveTime,
+		FixMediaNames: request.FixMediaNames, GenerateThumbnails: request.GenerateThumbnails,
+	}
+	return preparedTransfer{request: request, local: destination, remote: source, policy: policy, review: review}, nil
 }
 
 // StartTransfer executes the previously reviewable operation through the same
@@ -399,7 +467,7 @@ func (s *Service) StartTransfer(request TransferRequest) (transfer.Result, error
 			"enter the SSH password before starting the transfer")
 	}
 	startedAt := time.Now().UTC()
-	s.emitProgress(TransferProgress{Phase: "connecting", FileName: filepath.Base(prepared.source), Message: "Connecting with strict host verification"})
+	s.emitProgress(TransferProgress{Phase: "connecting", FileName: filepath.Base(prepared.local), Message: "Connecting with strict host verification"})
 	ctx, finish, err := s.beginTransfer()
 	if err != nil {
 		return transfer.Result{}, err
@@ -425,7 +493,7 @@ func (s *Service) execute(ctx context.Context, prepared preparedTransfer, passwo
 
 func (s *Service) executePrepared(ctx context.Context, prepared preparedTransfer, password string, progress func(transfer.Progress)) (transfer.Result, error) {
 	sshConnection, err := sshclient.Dial(ctx, sshclient.Options{
-		User: prepared.destination.User, Host: prepared.destination.Host, Port: prepared.request.Port,
+		User: prepared.remote.User, Host: prepared.remote.Host, Port: prepared.request.Port,
 		KnownHosts: prepared.request.KnownHosts, Identity: prepared.request.Identity,
 		Authentication: prepared.request.Authentication, Password: password, Timeout: 15 * time.Second,
 	})
@@ -440,23 +508,27 @@ func (s *Service) executePrepared(ctx context.Context, prepared preparedTransfer
 	}
 	defer remoteFS.Close()
 
+	engine := transfer.Engine{Remote: remoteFS, Hasher: remotehash.Hasher{Runner: access.SSHRunner{Client: sshConnection.Client}}}
+	options := transfer.Options{
+		Recursive: prepared.request.Recursive, Resume: prepared.request.Resume,
+		Overwrite: prepared.request.Overwrite, NoClobber: prepared.request.NoClobber, PreserveTime: prepared.request.PreserveTime,
+		FixMediaNames: prepared.request.FixMediaNames, GenerateThumbnails: prepared.request.GenerateThumbnails,
+		Policy: prepared.policy, Progress: progress,
+	}
+
+	if prepared.request.Direction == transferDirectionDownload {
+		return engine.Download(ctx, prepared.remote.Path, prepared.local, options)
+	}
+
 	resolver := access.Resolver{Runner: access.SSHRunner{Client: sshConnection.Client}}
-	var gid *int
 	if prepared.request.Group != "" {
 		resolved, resolveErr := resolver.Group(ctx, prepared.request.Group)
 		if resolveErr != nil {
 			return transfer.Result{}, resolveErr
 		}
-		gid = &resolved
+		options.GID = &resolved
 	}
-
-	engine := transfer.Engine{Remote: remoteFS, Hasher: remotehash.Hasher{Runner: access.SSHRunner{Client: sshConnection.Client}}}
-	result, err := engine.Copy(ctx, prepared.source, prepared.destination.Path, transfer.Options{
-		Recursive: prepared.request.Recursive, Resume: prepared.request.Resume,
-		Overwrite: prepared.request.Overwrite, NoClobber: prepared.request.NoClobber, PreserveTime: prepared.request.PreserveTime,
-		FixMediaNames: prepared.request.FixMediaNames, GenerateThumbnails: prepared.request.GenerateThumbnails,
-		Policy: prepared.policy, GID: gid, Progress: progress,
-	})
+	result, err := engine.Copy(ctx, prepared.local, prepared.remote.Path, options)
 	if err != nil {
 		return result, err
 	}
@@ -552,8 +624,8 @@ func (s *Service) ClearTransferHistory() error {
 
 func (s *Service) completeTransfer(prepared preparedTransfer, startedAt time.Time, result transfer.Result, transferErr error) (transfer.Result, error) {
 	entry := TransferHistoryEntry{
-		StartedAt: startedAt, CompletedAt: time.Now().UTC(), SourceName: filepath.Base(prepared.source),
-		Destination: redactedDestination(prepared.destination), Files: result.Files, Bytes: result.Bytes,
+		StartedAt: startedAt, CompletedAt: time.Now().UTC(), SourceName: filepath.Base(prepared.local),
+		Destination: redactedDestination(prepared.remote), Files: result.Files, Bytes: result.Bytes,
 		ResumedBytes: result.ResumedBytes, Verified: result.Verified,
 	}
 	if entry.SourceName == "." || entry.SourceName == string(filepath.Separator) {

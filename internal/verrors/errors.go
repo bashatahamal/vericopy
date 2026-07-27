@@ -14,6 +14,7 @@ const (
 	CodeInvalidLocalPath          Code = "INVALID_LOCAL_PATH"
 	CodeUnsupportedFileType       Code = "UNSUPPORTED_FILE_TYPE"
 	CodeInvalidRemoteDestination  Code = "INVALID_REMOTE_DESTINATION"
+	CodeInvalidRemoteSource       Code = "INVALID_REMOTE_SOURCE"
 	CodeSourcePathDialectMismatch Code = "SOURCE_PATH_DIALECT_MISMATCH"
 	CodeKnownHostsUnavailable     Code = "KNOWN_HOSTS_UNAVAILABLE"
 	CodeHostKeyRejected           Code = "HOST_KEY_REJECTED"
@@ -89,7 +90,7 @@ func As(err error) *Error {
 // ExitStatus maps diagnostics to stable process exit categories.
 func ExitStatus(err error) int {
 	switch As(err).Code {
-	case CodeInvalidArguments, CodeInvalidLocalPath, CodeInvalidRemoteDestination,
+	case CodeInvalidArguments, CodeInvalidLocalPath, CodeInvalidRemoteDestination, CodeInvalidRemoteSource,
 		CodeUnsupportedFileType, CodeInvalidPermission, CodeSourcePathDialectMismatch:
 		return 2
 	case CodeKnownHostsUnavailable, CodeHostKeyRejected, CodeAuthenticationFailed:

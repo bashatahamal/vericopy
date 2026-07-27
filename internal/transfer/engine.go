@@ -12,6 +12,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"sort"
 	"strings"
 	"time"
 
@@ -36,6 +37,7 @@ type RemoteFS interface {
 	Chtimes(path string, atime, mtime time.Time) error
 	Rename(oldPath, newPath string) error
 	Remove(path string) error
+	ReadDir(path string) ([]fs.FileInfo, error)
 }
 
 // Options is the verified transfer policy.
@@ -739,4 +741,563 @@ func countRegularFiles(source string) (int, error) {
 		return nil
 	})
 	return count, err
+}
+
+// Download transfers a regular file or directory tree from the remote
+// source to a local destination. It mirrors Copy's guarantees (resumable
+// partial state, byte-for-byte SHA-256 verification, truthful progress) in
+// the opposite direction: the remote side is read-only here, and the local
+// destination is where partial state, policy, and the final file live.
+func (e Engine) Download(ctx context.Context, source, destination string, options Options) (Result, error) {
+	if options.Overwrite && options.NoClobber {
+		return Result{}, verrors.New(verrors.CodeInvalidArguments, "--overwrite and --no-clobber cannot be used together")
+	}
+	info, err := e.Remote.Lstat(source)
+	if err != nil {
+		return Result{}, verrors.Wrap(verrors.CodeInvalidRemoteSource, "the remote source cannot be inspected", err)
+	}
+	if info.Mode()&fs.ModeSymlink != 0 {
+		return Result{}, verrors.New(verrors.CodeUnsupportedFileType, "remote symbolic links are not followed by default")
+	}
+	if info.IsDir() {
+		if !options.Recursive {
+			return Result{}, verrors.New(verrors.CodeInvalidArguments, "the source is a directory; use --recursive")
+		}
+		return e.downloadDirectory(ctx, source, destination, options)
+	}
+	if !info.Mode().IsRegular() {
+		return Result{}, verrors.New(verrors.CodeUnsupportedFileType, "only regular files and directories are supported")
+	}
+	return e.downloadFile(ctx, source, destination, options, 1, 1)
+}
+
+func (e Engine) downloadDirectory(ctx context.Context, source, destination string, options Options) (Result, error) {
+	result := Result{Source: source, Destination: destination, Verified: true, DryRun: options.DryRun}
+	type directoryRecord struct {
+		local string
+		info  fs.FileInfo
+	}
+	directories := make([]directoryRecord, 0)
+	totalFiles, _ := e.countRemoteRegularFiles(source)
+	fileIndex := 0
+	if err := validateLocalParents(destination); err != nil {
+		return Result{}, err
+	}
+	if existing, err := os.Lstat(destination); err == nil && existing.Mode()&os.ModeSymlink != 0 {
+		return Result{}, verrors.New(verrors.CodeUnsupportedFileType,
+			fmt.Sprintf("local symbolic link %q is not followed", destination))
+	} else if err == nil && !options.Overwrite && !options.NoClobber {
+		return Result{}, verrors.New(verrors.CodeDestinationExists,
+			fmt.Sprintf("destination directory %q already exists", destination)).WithHint(
+			"Choose another destination, pass --overwrite to merge explicitly, or pass --no-clobber to add only what is missing.")
+	} else if err != nil && !os.IsNotExist(err) {
+		return Result{}, verrors.Wrap(verrors.CodeDestinationNotWritable, "the local destination directory could not be inspected", err)
+	}
+	err := e.walkRemoteDir(source, ".", func(relative string, isDir bool, entry fs.FileInfo) error {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		remotePath := source
+		if relative != "." {
+			remotePath = path.Join(source, relative)
+		}
+		if entry.Mode()&fs.ModeSymlink != 0 {
+			return verrors.New(verrors.CodeUnsupportedFileType,
+				fmt.Sprintf("remote symbolic link %q is not followed", remotePath))
+		}
+		localPath := destination
+		if relative != "." {
+			localPath = filepath.Join(destination, filepath.FromSlash(relative))
+		}
+		if isDir {
+			directories = append(directories, directoryRecord{local: localPath, info: entry})
+			if options.DryRun {
+				return nil
+			}
+			if err := os.MkdirAll(localPath, 0o700); err != nil {
+				return verrors.Wrap(verrors.CodeDestinationNotWritable, "could not create a local destination directory", err)
+			}
+			return nil
+		}
+		if !entry.Mode().IsRegular() {
+			return verrors.New(verrors.CodeUnsupportedFileType,
+				fmt.Sprintf("special remote file %q is not supported", remotePath))
+		}
+		fileIndex++
+		fileResult, err := e.downloadFile(ctx, remotePath, localPath, options, fileIndex, totalFiles)
+		if err != nil {
+			return err
+		}
+		result.Files += fileResult.Files
+		result.SkippedFiles += fileResult.SkippedFiles
+		result.Bytes += fileResult.Bytes
+		result.ResumedBytes += fileResult.ResumedBytes
+		return nil
+	})
+	if err != nil {
+		return Result{}, err
+	}
+	if options.PreserveTime && !options.DryRun {
+		for index := len(directories) - 1; index >= 0; index-- {
+			directory := directories[index]
+			if err := os.Chtimes(directory.local, directory.info.ModTime(), directory.info.ModTime()); err != nil {
+				return Result{}, verrors.Wrap(verrors.CodeInvalidPermission, "could not preserve a directory modification time", err)
+			}
+		}
+	}
+	return result, nil
+}
+
+func (e Engine) downloadFile(ctx context.Context, source, destination string, options Options, fileIndex, totalFiles int) (Result, error) {
+	result := Result{Source: source, Destination: destination, Files: 1, Verified: false, DryRun: options.DryRun}
+	initial, err := e.Remote.Lstat(source)
+	if err != nil {
+		return Result{}, verrors.Wrap(verrors.CodeInvalidRemoteSource, "the remote source cannot be read", err)
+	}
+	e.report(options, Progress{
+		Phase: "preparing", Source: source, Destination: destination, TotalBytes: initial.Size(),
+		CurrentFile: fileIndex, TotalFiles: totalFiles,
+	})
+	if err := validateLocalParents(destination); err != nil {
+		return Result{}, err
+	}
+	destination, skip, err := e.resolveLocalDestination(source, destination, options)
+	if err != nil {
+		return Result{}, err
+	}
+	result.Destination = destination
+	if skip {
+		e.report(options, Progress{
+			Phase: "skipped", Source: source, Destination: destination, TotalBytes: initial.Size(),
+			CurrentFile: fileIndex, TotalFiles: totalFiles,
+		})
+		return Result{Source: source, Destination: destination, SkippedFiles: 1, DryRun: options.DryRun}, nil
+	}
+
+	prefixDigest, prefixBytes, err := e.remotePrefixSHA256(ctx, source, prefixLimit)
+	if err != nil {
+		return Result{}, verrors.Wrap(verrors.CodeTransferFailed, "could not fingerprint the remote source", err)
+	}
+	metadata := PartialMetadata{
+		Schema: metadataSchema, SourceSize: initial.Size(), SourceMTime: initial.ModTime().UnixNano(),
+		PrefixBytes: prefixBytes, PrefixSHA256: prefixDigest,
+	}
+	partialPath, sidecarPath := localPartialPaths(destination, metadata)
+	if options.DryRun {
+		result.Bytes = initial.Size()
+		return result, nil
+	}
+	if err := os.MkdirAll(filepath.Dir(destination), 0o700); err != nil {
+		return Result{}, verrors.Wrap(verrors.CodeDestinationNotWritable, "could not create the local destination parent", err)
+	}
+
+	offset, err := e.prepareLocalPartial(ctx, source, partialPath, sidecarPath, metadata, options.Resume)
+	if err != nil {
+		return Result{}, err
+	}
+	result.ResumedBytes = offset
+	e.report(options, Progress{
+		Phase: "downloading", Source: source, Destination: destination,
+		TransferredBytes: offset, TotalBytes: initial.Size(), ResumedBytes: offset,
+		CurrentFile: fileIndex, TotalFiles: totalFiles,
+	})
+	receivedDigest, receivedBytes, err := e.download(ctx, source, partialPath, offset, func(transferred int64) {
+		e.report(options, Progress{
+			Phase: "downloading", Source: source, Destination: destination,
+			TransferredBytes: transferred, TotalBytes: initial.Size(), ResumedBytes: offset,
+			CurrentFile: fileIndex, TotalFiles: totalFiles,
+		})
+	})
+	if err != nil {
+		return Result{}, err
+	}
+
+	finalSource, err := e.Remote.Lstat(source)
+	if err != nil || finalSource.Size() != initial.Size() || !finalSource.ModTime().Equal(initial.ModTime()) {
+		return Result{}, verrors.New(verrors.CodeSourceChanged, "the source changed while it was being transferred").
+			WithHint("Retry after the source is no longer being modified.")
+	}
+	e.report(options, Progress{
+		Phase: "verifying", Source: source, Destination: destination,
+		TransferredBytes: receivedBytes, TotalBytes: initial.Size(), ResumedBytes: offset,
+		CurrentFile: fileIndex, TotalFiles: totalFiles,
+	})
+	if !e.verifyRemoteFast(ctx, source, receivedDigest, receivedBytes) {
+		remoteReader, err := e.Remote.Open(source)
+		if err != nil {
+			return Result{}, verrors.Wrap(verrors.CodeVerificationFailed, "could not reopen the remote source", err)
+		}
+		remoteDigest, remoteBytes, err := checksum.SHA256(remoteReader)
+		_ = remoteReader.Close()
+		if err != nil {
+			return Result{}, verrors.Wrap(verrors.CodeVerificationFailed, "could not calculate the remote SHA-256", err)
+		}
+		if receivedBytes != remoteBytes || receivedDigest != remoteDigest {
+			return Result{}, verrors.New(verrors.CodeChecksumMismatch,
+				"the downloaded file does not match the remote source").WithDetails(map[string]any{
+				"local_size": receivedBytes, "remote_size": remoteBytes,
+				"local_sha256": receivedDigest, "remote_sha256": remoteDigest,
+			})
+		}
+	}
+	e.report(options, Progress{
+		Phase: "finalizing", Source: source, Destination: destination,
+		TransferredBytes: receivedBytes, TotalBytes: initial.Size(), ResumedBytes: offset,
+		CurrentFile: fileIndex, TotalFiles: totalFiles,
+	})
+	if options.Overwrite {
+		if _, statErr := os.Lstat(destination); statErr == nil {
+			if err := os.Remove(destination); err != nil {
+				return Result{}, verrors.Wrap(verrors.CodeDestinationNotWritable, "could not replace the existing local destination", err)
+			}
+		}
+	}
+	if err := os.Rename(partialPath, destination); err != nil {
+		return Result{}, verrors.Wrap(verrors.CodeTransferFailed,
+			"verification succeeded, but finalizing the local file failed", err).
+			WithHint("The verified partial file was retained for inspection or retry.")
+	}
+	_ = os.Remove(sidecarPath)
+	result.Bytes, result.SHA256, result.Verified = receivedBytes, receivedDigest, true
+	if options.GenerateThumbnails {
+		if err := e.downloadThumbnail(destination); err != nil {
+			return Result{}, err
+		}
+	}
+	e.report(options, Progress{
+		Phase: "verified", Source: source, Destination: destination,
+		TransferredBytes: receivedBytes, TotalBytes: initial.Size(), ResumedBytes: offset,
+		CurrentFile: fileIndex, TotalFiles: totalFiles,
+	})
+	return result, nil
+}
+
+// walkRemoteDir visits root and every descendant in pre-order (a directory
+// before its children), mirroring filepath.WalkDir's contract but driven by
+// the RemoteFS interface instead of the local filesystem. relative uses "."
+// for root and forward slashes below it regardless of the local OS, since it
+// is pure bookkeeping rather than a path handed to either filesystem.
+func (e Engine) walkRemoteDir(root, relative string, fn func(relative string, isDir bool, info fs.FileInfo) error) error {
+	fullPath := root
+	if relative != "." {
+		fullPath = path.Join(root, relative)
+	}
+	info, err := e.Remote.Lstat(fullPath)
+	if err != nil {
+		return verrors.Wrap(verrors.CodeInvalidRemoteSource, fmt.Sprintf("could not inspect remote path %q", fullPath), err)
+	}
+	if err := fn(relative, info.IsDir(), info); err != nil {
+		return err
+	}
+	if !info.IsDir() {
+		return nil
+	}
+	entries, err := e.Remote.ReadDir(fullPath)
+	if err != nil {
+		return verrors.Wrap(verrors.CodeInvalidRemoteSource, fmt.Sprintf("could not list remote directory %q", fullPath), err)
+	}
+	sort.Slice(entries, func(i, j int) bool { return entries[i].Name() < entries[j].Name() })
+	for _, entry := range entries {
+		childRelative := entry.Name()
+		if relative != "." {
+			childRelative = path.Join(relative, entry.Name())
+		}
+		if err := e.walkRemoteDir(root, childRelative, fn); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (e Engine) countRemoteRegularFiles(source string) (int, error) {
+	count := 0
+	err := e.walkRemoteDir(source, ".", func(_ string, isDir bool, info fs.FileInfo) error {
+		if !isDir && info.Mode()&fs.ModeSymlink == 0 {
+			count++
+		}
+		return nil
+	})
+	return count, err
+}
+
+// resolveLocalDestination mirrors resolveDestination for a local
+// destination: the same directory-append, media-name rename, and
+// existence-decision rules, applied with os.* instead of the RemoteFS.
+func (e Engine) resolveLocalDestination(source, destination string, options Options) (string, bool, error) {
+	existing, statErr := os.Lstat(destination)
+	if statErr == nil {
+		if existing.Mode()&os.ModeSymlink != 0 {
+			return "", false, verrors.New(verrors.CodeUnsupportedFileType,
+				fmt.Sprintf("local symbolic link %q is not followed", destination))
+		}
+		if existing.IsDir() {
+			destination = filepath.Join(destination, path.Base(source))
+			existing, statErr = os.Lstat(destination)
+		}
+	} else if !os.IsNotExist(statErr) {
+		return "", false, verrors.Wrap(verrors.CodeDestinationNotWritable, "the local destination could not be inspected", statErr)
+	}
+
+	if options.FixMediaNames {
+		if renamed := renameForMediaServersLocal(destination); renamed != destination {
+			destination = renamed
+			existing, statErr = os.Lstat(destination)
+		}
+	}
+
+	if statErr == nil {
+		if existing.Mode()&os.ModeSymlink != 0 {
+			return "", false, verrors.New(verrors.CodeUnsupportedFileType,
+				fmt.Sprintf("local symbolic link %q is not followed", destination))
+		}
+		if options.NoClobber {
+			return destination, true, nil
+		}
+		if !options.Overwrite {
+			return "", false, verrors.New(verrors.CodeDestinationExists,
+				fmt.Sprintf("destination %q already exists", destination)).WithHint(
+				"Choose another destination, pass --overwrite explicitly, or pass --no-clobber to skip it and download the rest.")
+		}
+	} else if !os.IsNotExist(statErr) {
+		return "", false, verrors.Wrap(verrors.CodeDestinationNotWritable, "the local destination could not be inspected", statErr)
+	}
+	return destination, false, nil
+}
+
+func renameForMediaServersLocal(destination string) string {
+	dir, base := filepath.Split(destination)
+	renamed, ok := medianame.RewriteFilename(base)
+	if !ok {
+		return destination
+	}
+	return filepath.Join(dir, renamed)
+}
+
+// downloadThumbnail mirrors uploadThumbnail for a just-verified local file.
+func (e Engine) downloadThumbnail(destination string) error {
+	label, ok := medianame.EpisodeLabel(filepath.Base(destination))
+	if !ok {
+		return nil
+	}
+	image, err := thumbnail.Generate(label)
+	if err != nil {
+		return verrors.Wrap(verrors.CodeTransferFailed, "could not generate a placeholder thumbnail", err)
+	}
+	thumbnailPath := strings.TrimSuffix(destination, filepath.Ext(destination)) + ".jpg"
+	if err := os.WriteFile(thumbnailPath, image, 0o644); err != nil {
+		return verrors.Wrap(verrors.CodeDestinationNotWritable, "could not write the placeholder thumbnail", err)
+	}
+	return nil
+}
+
+// remotePrefixSHA256 fingerprints the first limit bytes of a remote file,
+// mirroring the local checksum.PrefixSHA256 call copyFile makes on a local
+// source, so resume compatibility can be judged the same way in reverse.
+func (e Engine) remotePrefixSHA256(ctx context.Context, source string, limit int64) (string, int64, error) {
+	reader, err := e.Remote.Open(source)
+	if err != nil {
+		return "", 0, err
+	}
+	defer reader.Close()
+	return checksum.PrefixSHA256(&contextReader{ctx: ctx, reader: reader}, limit)
+}
+
+// prepareLocalPartial mirrors preparePartial with the resumable partial file
+// on local disk instead of the remote server, validating its prefix against
+// the remote source instead of a local one.
+func (e Engine) prepareLocalPartial(ctx context.Context, source, partialPath, sidecarPath string, expected PartialMetadata, resume bool) (int64, error) {
+	partialInfo, partialErr := os.Lstat(partialPath)
+	if partialErr == nil && partialInfo.Mode()&os.ModeSymlink != 0 {
+		return 0, verrors.New(verrors.CodeUnsupportedFileType,
+			fmt.Sprintf("local symbolic link %q is not followed", partialPath))
+	}
+	if partialErr == nil && resume {
+		stored, err := readLocalMetadata(sidecarPath)
+		if err != nil || !ResumeCompatible(expected, stored, partialInfo.Size()) {
+			return 0, verrors.New(verrors.CodeResumeIncompatible,
+				"existing partial state does not match this source").WithHint(
+				"Retry without --resume to replace Vericopy's stale partial state.")
+		}
+		validationBytes := min(expected.PrefixBytes, partialInfo.Size())
+		partialReader, err := os.Open(partialPath)
+		if err != nil {
+			return 0, err
+		}
+		localPrefix, _, hashErr := checksum.PrefixSHA256(partialReader, validationBytes)
+		_ = partialReader.Close()
+		if hashErr != nil {
+			return 0, hashErr
+		}
+		remoteReader, err := e.Remote.Open(source)
+		if err != nil {
+			return 0, err
+		}
+		remotePrefix, _, hashErr := checksum.PrefixSHA256(&contextReader{ctx: ctx, reader: remoteReader}, validationBytes)
+		_ = remoteReader.Close()
+		if hashErr != nil {
+			return 0, hashErr
+		}
+		if remotePrefix != localPrefix {
+			return 0, verrors.New(verrors.CodeResumeIncompatible, "the local partial prefix does not match the remote source")
+		}
+		return partialInfo.Size(), nil
+	}
+	if partialErr != nil && !os.IsNotExist(partialErr) {
+		return 0, verrors.Wrap(verrors.CodeDestinationNotWritable, "partial state could not be inspected", partialErr)
+	}
+	if partialErr == nil {
+		if err := os.Remove(partialPath); err != nil {
+			return 0, verrors.Wrap(verrors.CodeDestinationNotWritable, "stale partial state could not be removed", err)
+		}
+		_ = os.Remove(sidecarPath)
+	} else if sidecarInfo, sidecarErr := os.Lstat(sidecarPath); sidecarErr == nil {
+		if sidecarInfo.Mode()&os.ModeSymlink != 0 {
+			return 0, verrors.New(verrors.CodeUnsupportedFileType,
+				fmt.Sprintf("local symbolic link %q is not followed", sidecarPath))
+		}
+		if err := os.Remove(sidecarPath); err != nil {
+			return 0, verrors.Wrap(verrors.CodeDestinationNotWritable, "stale resume metadata could not be removed", err)
+		}
+	} else if !os.IsNotExist(sidecarErr) {
+		return 0, verrors.Wrap(verrors.CodeDestinationNotWritable, "resume metadata could not be inspected", sidecarErr)
+	}
+	if err := writeLocalMetadata(sidecarPath, expected); err != nil {
+		return 0, err
+	}
+	file, err := os.OpenFile(partialPath, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o600)
+	if err != nil {
+		return 0, verrors.Wrap(verrors.CodeDestinationNotWritable, "could not create a restrictive partial file", err)
+	}
+	_ = file.Close()
+	return 0, nil
+}
+
+// download streams a remote source into a local partial file starting at
+// offset, mirroring upload's resume-by-rehashing-the-prefix approach in
+// reverse: the remote reader is not seekable, so a resumed download rehashes
+// its own already-received prefix rather than seeking past it.
+func (e Engine) download(ctx context.Context, source, partialPath string, offset int64, progress func(int64)) (string, int64, error) {
+	remote, err := e.Remote.Open(source)
+	if err != nil {
+		return "", 0, verrors.Wrap(verrors.CodeInvalidRemoteSource, "the remote source could not be opened", err)
+	}
+	defer remote.Close()
+	hash := sha256.New()
+	if offset > 0 {
+		if _, err := io.CopyN(hash, &contextReader{ctx: ctx, reader: remote}, offset); err != nil {
+			return "", 0, verrors.Wrap(verrors.CodeTransferFailed, "could not hash the resumed source prefix", err)
+		}
+	}
+	local, err := os.OpenFile(partialPath, os.O_WRONLY, 0o600)
+	if err != nil {
+		return "", 0, verrors.Wrap(verrors.CodeDestinationNotWritable, "could not open the local partial file", err)
+	}
+	defer local.Close()
+	if _, err := local.Seek(offset, io.SeekStart); err != nil {
+		return "", 0, verrors.Wrap(verrors.CodeTransferFailed, "could not seek the local partial file for resume", err)
+	}
+	written, err := io.Copy(&progressWriter{
+		writer: io.MultiWriter(local, hash),
+		onWrite: func(written int64) {
+			if progress != nil {
+				progress(offset + written)
+			}
+		},
+	}, &contextReader{ctx: ctx, reader: remote})
+	if err != nil {
+		if ctx.Err() != nil {
+			return "", offset + written, verrors.Wrap(verrors.CodeTransferInterrupted,
+				"the transfer was interrupted; compatible partial state was retained", ctx.Err())
+		}
+		return "", offset + written, verrors.Wrap(verrors.CodeTransferInterrupted,
+			"the connection ended before download completed; compatible partial state was retained", err)
+	}
+	return hex.EncodeToString(hash.Sum(nil)), offset + written, nil
+}
+
+func writeLocalMetadata(filename string, metadata PartialMetadata) error {
+	file, err := os.OpenFile(filename, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o600)
+	if err != nil {
+		return verrors.Wrap(verrors.CodeDestinationNotWritable, "could not create resume metadata", err)
+	}
+	encodeErr := json.NewEncoder(file).Encode(metadata)
+	closeErr := file.Close()
+	if encodeErr != nil {
+		return verrors.Wrap(verrors.CodeDestinationNotWritable, "could not write resume metadata", encodeErr)
+	}
+	if closeErr != nil {
+		return closeErr
+	}
+	return nil
+}
+
+func readLocalMetadata(filename string) (PartialMetadata, error) {
+	info, err := os.Lstat(filename)
+	if err != nil {
+		return PartialMetadata{}, err
+	}
+	if info.Mode()&os.ModeSymlink != 0 {
+		return PartialMetadata{}, verrors.New(verrors.CodeUnsupportedFileType,
+			fmt.Sprintf("local symbolic link %q is not followed", filename))
+	}
+	file, err := os.Open(filename)
+	if err != nil {
+		return PartialMetadata{}, err
+	}
+	defer file.Close()
+	var metadata PartialMetadata
+	if err := json.NewDecoder(io.LimitReader(file, 16*1024)).Decode(&metadata); err != nil {
+		return PartialMetadata{}, err
+	}
+	return metadata, nil
+}
+
+// validateLocalParents mirrors validateRemoteParents for a local
+// destination: every ancestor directory from the root down to destination's
+// immediate parent must not exist as a symlink or a non-directory.
+func validateLocalParents(destination string) error {
+	parent := filepath.Dir(filepath.Clean(destination))
+	components := make([]string, 0)
+	current := parent
+	for {
+		components = append(components, current)
+		next := filepath.Dir(current)
+		if next == current {
+			break
+		}
+		current = next
+	}
+	for i, j := 0, len(components)-1; i < j; i, j = i+1, j-1 {
+		components[i], components[j] = components[j], components[i]
+	}
+	for _, component := range components {
+		info, err := os.Lstat(component)
+		if os.IsNotExist(err) {
+			return nil
+		}
+		if err != nil {
+			return verrors.Wrap(verrors.CodeDestinationNotWritable,
+				fmt.Sprintf("local parent %q could not be inspected", component), err)
+		}
+		if info.Mode()&os.ModeSymlink != 0 {
+			return verrors.New(verrors.CodeUnsupportedFileType,
+				fmt.Sprintf("local symbolic link %q is not followed", component))
+		}
+		if !info.IsDir() {
+			return verrors.New(verrors.CodeDestinationNotWritable,
+				fmt.Sprintf("local parent %q is not a directory", component))
+		}
+	}
+	return nil
+}
+
+// localPartialPaths mirrors PartialPaths using filepath instead of path, so
+// the hidden partial file lands next to the local destination correctly on
+// every OS path dialect instead of assuming POSIX separators.
+func localPartialPaths(destination string, metadata PartialMetadata) (partial, sidecar string) {
+	identity := sha256.Sum256([]byte(fmt.Sprintf("%s\x00%d\x00%s", destination, metadata.SourceSize, metadata.PrefixSHA256)))
+	suffix := hex.EncodeToString(identity[:8])
+	directory, base := filepath.Split(destination)
+	partial = filepath.Join(directory, "."+base+".vericopy-"+suffix+".partial")
+	return partial, partial + ".json"
 }

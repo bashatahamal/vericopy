@@ -107,6 +107,7 @@ const els = {
   browseSelectionCount: $("#browse-selection-count"),
   browseFixNames: $("#browse-fix-names"),
   browseGenerateThumbnails: $("#browse-generate-thumbnails"),
+  browseDownloadSelected: $("#browse-download-selected"),
   browseDeleteSelected: $("#browse-delete-selected"),
   reviewSecurity: $("#review-security"),
   progressPanel: $("#progress-panel"),
@@ -127,6 +128,7 @@ let selectedSession = "";
 let reviewedRequest = null;
 let lastHistory = [];
 let transferQueue = { jobs: [], running: 0, queued: 0, max_concurrent: 2 };
+let currentPlatform = "";
 let retryingJobID = "";
 let multipleSources = [];
 
@@ -972,6 +974,14 @@ function jobRow(job, compact = false) {
       retry.addEventListener("click", () => retryJob(job));
       actions.append(retry);
     }
+    if (job.status === "verified" && job.local_path) {
+      const reveal = document.createElement("button");
+      reveal.type = "button";
+      reveal.className = "btn btn-secondary btn-sm";
+      reveal.textContent = revealButtonLabel();
+      reveal.addEventListener("click", () => revealJob(job.local_path, reveal));
+      actions.append(reveal);
+    }
     if (["verified", "interrupted", "failed", "canceled"].includes(job.status)) {
       const remove = document.createElement("button");
       remove.type = "button";
@@ -993,7 +1003,7 @@ function jobSignature(job) {
   return [
     job.status, job.phase, job.message, job.transferred_bytes, job.total_bytes,
     job.resumed_bytes, job.current_file, job.total_files, job.files, job.skipped_files,
-    job.bytes, job.destination, job.authentication,
+    job.bytes, job.destination, job.authentication, job.local_path,
   ].join("|");
 }
 
@@ -1109,6 +1119,24 @@ async function retryJob(job) {
     await loadTransferJobs();
   } catch (error) {
     setManagerNotice(error?.message || String(error), "error");
+  }
+}
+
+function revealButtonLabel() {
+  if (currentPlatform.startsWith("windows")) return "Show in Explorer";
+  if (currentPlatform.startsWith("darwin")) return "Show in Finder";
+  return "Show in file manager";
+}
+
+async function revealJob(path, button) {
+  if (!path) return;
+  button.disabled = true;
+  try {
+    await invoke("RevealInFileManager", path);
+  } catch (error) {
+    setManagerNotice(error?.message || String(error), "error");
+  } finally {
+    button.disabled = false;
   }
 }
 
@@ -1476,6 +1504,59 @@ function updateBrowseActions() {
   const remoteOnly = browseMode === "remote";
   els.browseFixNames.hidden = !remoteOnly;
   els.browseGenerateThumbnails.hidden = !remoteOnly;
+  els.browseDownloadSelected.hidden = !remoteOnly;
+}
+
+async function downloadSelected() {
+  const paths = [...browseSelected];
+  if (paths.length === 0) return;
+  let folder;
+  try {
+    folder = await invoke("SelectDownloadDestination");
+  } catch (error) {
+    setBrowseNotice(error?.message || String(error), "error");
+    return;
+  }
+  if (!folder) return;
+
+  els.browseDownloadSelected.disabled = true;
+  let queued = 0;
+  const failures = [];
+  for (const fullPath of paths) {
+    const entry = browseEntries.find((candidate) => browseEntryPath(candidate.name) === fullPath);
+    const connection = browseConnectionRequest(fullPath);
+    const request = {
+      direction: "download",
+      source: connection.destination,
+      destination: folder,
+      port: connection.port,
+      known_hosts: connection.known_hosts,
+      identity: connection.authentication === "key" ? connection.identity : "",
+      password: connection.password,
+      authentication: connection.authentication,
+      recursive: !!entry?.is_dir,
+      resume: true,
+    };
+    try {
+      await invoke("EnqueueTransfer", request);
+      queued++;
+    } catch (error) {
+      failures.push(`${entry ? entry.name : fullPath}: ${error?.message || error}`);
+    }
+  }
+  els.browseDownloadSelected.disabled = false;
+
+  if (failures.length === 0) {
+    setBrowseNotice(`Queued ${queued} download(s). Check Activity for progress.`, "success");
+  } else if (queued === 0) {
+    setBrowseNotice(`Could not queue any downloads — ${failures.join("; ")}`, "error");
+  } else {
+    setBrowseNotice(`Queued ${queued} download(s); ${failures.length} failed — ${failures.join("; ")}`, "error");
+  }
+  if (queued > 0) {
+    await loadTransferJobs();
+    showView("activity");
+  }
 }
 
 async function fixSelectedMediaNames() {
@@ -1597,6 +1678,7 @@ els.browseSelectAll.addEventListener("change", () => {
 });
 els.browseFixNames.addEventListener("click", fixSelectedMediaNames);
 els.browseGenerateThumbnails.addEventListener("click", generateSelectedThumbnails);
+els.browseDownloadSelected.addEventListener("click", downloadSelected);
 els.browseDeleteSelected.addEventListener("click", deleteBrowseSelected);
 
 /* ---------- dashboard + statusbar ---------- */
@@ -1604,6 +1686,7 @@ els.browseDeleteSelected.addEventListener("click", deleteBrowseSelected);
 async function loadDashboard() {
   try {
     const dashboard = await invoke("GetDashboard");
+    currentPlatform = dashboard.platform || "";
     const hostsDot = $("#hosts-dot");
     const agentDot = $("#agent-dot");
     $("#hosts-state").textContent = dashboard.strict_host_keys_ready ? "known_hosts found" : "Needs attention";
