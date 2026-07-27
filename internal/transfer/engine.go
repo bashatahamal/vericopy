@@ -1252,9 +1252,13 @@ func readLocalMetadata(filename string) (PartialMetadata, error) {
 	return metadata, nil
 }
 
-// validateLocalParents mirrors validateRemoteParents for a local
-// destination: every ancestor directory from the root down to destination's
-// immediate parent must not exist as a symlink or a non-directory.
+// validateLocalParents checks that every existing ancestor directory from
+// the root down to destination's immediate parent is usable as a directory.
+// Unlike validateRemoteParents, it deliberately follows symlinks (os.Stat,
+// not os.Lstat): an ordinary local machine routinely has symlinked system
+// directories (e.g. macOS's /var and /tmp point into /private), and that is
+// not the same trust boundary as a remote SSH server redirecting writes, so
+// rejecting a symlinked local ancestor would just be a false positive.
 func validateLocalParents(destination string) error {
 	parent := filepath.Dir(filepath.Clean(destination))
 	components := make([]string, 0)
@@ -1271,17 +1275,13 @@ func validateLocalParents(destination string) error {
 		components[i], components[j] = components[j], components[i]
 	}
 	for _, component := range components {
-		info, err := os.Lstat(component)
+		info, err := os.Stat(component)
 		if os.IsNotExist(err) {
 			return nil
 		}
 		if err != nil {
 			return verrors.Wrap(verrors.CodeDestinationNotWritable,
 				fmt.Sprintf("local parent %q could not be inspected", component), err)
-		}
-		if info.Mode()&os.ModeSymlink != 0 {
-			return verrors.New(verrors.CodeUnsupportedFileType,
-				fmt.Sprintf("local symbolic link %q is not followed", component))
 		}
 		if !info.IsDir() {
 			return verrors.New(verrors.CodeDestinationNotWritable,
