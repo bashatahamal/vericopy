@@ -5,7 +5,7 @@ go 1.25.0
 require (
 	github.com/pkg/sftp v1.13.10
 	github.com/spf13/cobra v1.10.2
-	github.com/wailsapp/wails/v2 v2.13.0
+	github.com/wailsapp/wails/v2 v2.14.0
 	github.com/zalando/go-keyring v0.2.6
 	golang.org/x/crypto v0.54.0
 	golang.org/x/image v0.44.0
