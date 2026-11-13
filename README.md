@@ -181,7 +181,7 @@ requirements are documented in [release verification](docs/release-verification.
 
 ## Development
 
-Requirements: Go 1.25 or later. A native Wails package must be built on its
+Requirements: Go 1.26 or later. A native Wails package must be built on its
 target operating system.
 
 ```sh

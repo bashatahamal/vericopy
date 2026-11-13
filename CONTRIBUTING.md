@@ -12,7 +12,7 @@ can be agreed before implementation.
 
 ## Development setup
 
-Use Go 1.25 or later and Docker for the isolated OpenSSH suite.
+Use Go 1.26 or later and Docker for the isolated OpenSSH suite.
 
 ```sh
 go mod download
