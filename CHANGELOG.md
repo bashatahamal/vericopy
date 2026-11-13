@@ -47,6 +47,10 @@ Changelog, and releases follow Semantic Versioning.
   developer reference.
 - Renamed the pre-release `media-readonly` permission policy to
   `service-readonly`.
+- Go 1.26 is now the minimum toolchain for development, CI, and releases; CI
+  and release builds track the latest 1.26 patch, and the container build uses
+  `golang:1.26.11`, which clears a standard-library `encoding/asn1` advisory
+  (GO-2026-5972) present in 1.26.5.
 
 ### Fixed
 
@@ -54,5 +58,12 @@ Changelog, and releases follow Semantic Versioning.
   ordinary engine-focused Go tests to compile the native shell.
 - Windows path, OpenSSH integration, and Go patch-level CI failures discovered
   during desktop development.
+
+### Security
+
+- Upgraded the indirect `github.com/labstack/echo/v4` dependency from 4.13.3 to
+  4.16.3, resolving 14 Dependabot advisories. Echo is only linked into
+  `wails dev` builds through the Wails development server, not into release
+  binaries.
 
 [Unreleased]: https://github.com/bashatahamal/vericopy/compare/v0.1.0...HEAD
